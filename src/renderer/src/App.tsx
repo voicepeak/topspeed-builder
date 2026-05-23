@@ -828,6 +828,13 @@ function AssetCard(props: {
         {props.asset.atlasPath && <Pill>Atlas</Pill>}
         {props.asset.metadataPath && <Pill>JSON</Pill>}
       </div>
+      {props.asset.exportTargets && props.asset.exportTargets.length > 0 && (
+        <div className="assetActions" style={{ gap: 4 }}>
+          {props.asset.exportTargets.map((t) => (
+            <span key={t} className="pill" style={{ borderColor: "rgba(0,212,255,0.25)", color: "var(--cyan)", background: "var(--cyan-dim)" }}>{t}</span>
+          ))}
+        </div>
+      )}
       <div className="assetActions" style={{ marginTop: "auto" }}>
         <button
           className="ghostButton"
