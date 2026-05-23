@@ -465,11 +465,11 @@ function ProjectPage(props: {
       <div className="templateGrid">
         {draft.styleTemplates.length === 0 && <EmptyState text="还没有风格模板" />}
         {draft.styleTemplates.map((template) => (
-          <article key={template.id} className="templateItem" style={{ position: "relative" }}>
+          <article key={template.id} className="templateItem" style={{ position: "relative", cursor: "pointer" }} onClick={() => setDraft({ ...draft, styleDescription: template.description })}>
             <button
               className="ghostButton"
-              style={{ position: "absolute", top: 6, right: 6, width: 28, minHeight: 28, padding: 0, borderColor: "transparent", color: "var(--magenta)" }}
-              onClick={() => setDraft({ ...draft, styleTemplates: draft.styleTemplates.filter((t) => t.id !== template.id) })}
+              style={{ position: "absolute", top: 6, right: 6, width: 28, minHeight: 28, padding: 0, borderColor: "transparent", color: "var(--magenta)", cursor: "pointer" }}
+              onClick={(e) => { e.stopPropagation(); setDraft({ ...draft, styleTemplates: draft.styleTemplates.filter((t) => t.id !== template.id) }); }}
             ><Trash2 size={13} /></button>
             <strong>{template.name}</strong>
             <span>{template.description}</span>
