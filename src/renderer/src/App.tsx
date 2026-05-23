@@ -38,6 +38,7 @@ import type {
 } from "@shared/types";
 
 type Page = "home" | "project" | "generate" | "preview" | "export" | "history" | "settings";
+type DetailTemplate = { id: string; name: string; prompt: string; meta: string };
 
 const exportTargets: ExportTarget[] = ["unity", "godot", "tiled", "phaser", "cocos", "common"];
 const assetTypes: Array<{ value: AssetType; label: string }> = [
@@ -50,6 +51,49 @@ const assetTypes: Array<{ value: AssetType; label: string }> = [
   { value: "background", label: "背景" },
   { value: "effect", label: "特效" }
 ];
+
+const objectDetailTemplates: Record<AssetType, DetailTemplate[]> = {
+  icon: [
+    { id: "icon-readable", name: "高可读轮廓", prompt: "single centered object, bold readable silhouette, front-facing, no text, no extra props", meta: "图标 · 背包识别" },
+    { id: "icon-material", name: "材质重点", prompt: "clear material cue, polished edges, small highlight accents, readable at tiny size", meta: "图标 · 材质" },
+    { id: "icon-rare", name: "稀有道具感", prompt: "premium collectible feel, compact shape, subtle glow, clean outline, no background clutter", meta: "图标 · 品质" }
+  ],
+  item: [
+    { id: "item-held", name: "可持握道具", prompt: "handheld prop proportions, visible grip area, practical game silhouette, isolated object", meta: "道具 · 使用感" },
+    { id: "item-worn", name: "旧化边缘", prompt: "worn edges, scratches, small dents, readable material wear without noisy detail", meta: "道具 · 质感" },
+    { id: "item-quest", name: "任务物品", prompt: "distinctive quest item shape, recognizable focal detail, slightly ceremonial construction", meta: "道具 · 叙事" }
+  ],
+  character: [
+    { id: "character-consistent", name: "身份一致", prompt: "same character identity across frames, consistent outfit, proportions, palette, and camera angle", meta: "角色 · 序列帧" },
+    { id: "character-action", name: "动作清晰", prompt: "clear action pose, readable limb separation, balanced weight, no motion blur", meta: "角色 · 动作" },
+    { id: "character-rpg", name: "RPG 站姿", prompt: "compact RPG sprite stance, heroic posture, weapon visible, clean idle silhouette", meta: "角色 · 战斗" }
+  ],
+  enemy: [
+    { id: "enemy-threat", name: "威胁轮廓", prompt: "hostile creature silhouette, exaggerated readable shape, clear weak point, no cute expression", meta: "怪物 · 识别" },
+    { id: "enemy-slime", name: "软体怪", prompt: "gelatinous body, simple face, squashable rounded shape, translucent edge highlights", meta: "怪物 · 软体" },
+    { id: "enemy-boss", name: "精英单位", prompt: "larger elite variant details, armor-like plates, stronger silhouette, readable attack cues", meta: "怪物 · 精英" }
+  ],
+  tileset: [
+    { id: "tile-seam", name: "拼接边缘", prompt: "tileable edges, repeatable pattern, no unique landmark crossing the border, full tile coverage", meta: "TileSet · 拼接" },
+    { id: "tile-wear", name: "地表磨损", prompt: "subtle cracks, chipped corners, small surface variation, consistent top-down lighting", meta: "TileSet · 地表" },
+    { id: "tile-modular", name: "模块套件", prompt: "modular dungeon construction, matching floor and wall language, consistent scale cues", meta: "TileSet · 模块" }
+  ],
+  ui: [
+    { id: "ui-panel", name: "面板控件", prompt: "clean UI panel part, nine-slice friendly edges, readable bevel, no text labels", meta: "UI · 面板" },
+    { id: "ui-button", name: "按钮状态", prompt: "game button element, clear pressed-state geometry, centered highlight, no embedded text", meta: "UI · 控件" },
+    { id: "ui-hud", name: "HUD 元件", prompt: "compact HUD element, strong icon slot, high contrast rim, transparent background", meta: "UI · HUD" }
+  ],
+  background: [
+    { id: "bg-parallax", name: "视差层", prompt: "side-scrolling parallax layer, separated foreground and background depth, no characters", meta: "背景 · 横版" },
+    { id: "bg-loop", name: "循环背景", prompt: "loopable horizontal background, soft repeating landmarks, consistent horizon line", meta: "背景 · 循环" },
+    { id: "bg-atmosphere", name: "气氛光", prompt: "environment mood lighting, readable depth layers, unobtrusive gameplay backdrop", meta: "背景 · 气氛" }
+  ],
+  effect: [
+    { id: "effect-impact", name: "命中特效", prompt: "short impact burst, clear center point, radial particles, transparent background", meta: "特效 · 打击" },
+    { id: "effect-loop", name: "循环粒子", prompt: "loop-friendly particle shape, consistent energy flow, no hard start or end cue", meta: "特效 · 循环" },
+    { id: "effect-magic", name: "魔法光效", prompt: "arcane glow particles, readable spell core, soft outer bloom, clean alpha edges", meta: "特效 · 魔法" }
+  ]
+};
 
 const defaultAnimations: AnimationConfig[] = [
   { name: "idle", frames: 4, fps: 6, loop: true },
@@ -525,6 +569,7 @@ function GeneratePage(props: {
 }): JSX.Element {
   const defaultPresets = useMemo(() => presetsFor("icon", props.project.defaultResolution), []);
   const [assetType, setAssetType] = useState<AssetType>("icon");
+  const detailTemplates = useMemo(() => objectDetailTemplates[assetType], [assetType]);
   const [name, setName] = useState(defaultPresets.name);
   const [description, setDescription] = useState(defaultPresets.description);
   const [detailPrompt, setDetailPrompt] = useState("");
@@ -547,6 +592,7 @@ function GeneratePage(props: {
     const { name: n, description: d, size: s, transparentBackground: t } = presetsFor(newType, props.project.defaultResolution);
     setName(n);
     setDescription(d);
+    setDetailPrompt("");
     setSize(s);
     setTransparentBackground(t);
   }
@@ -596,9 +642,38 @@ function GeneratePage(props: {
           <TextInput label="素材名称" value={name} onChange={setName} />
           <TextInput label="尺寸" value={size} onChange={setSize} />
           <NumberInput label="数量" value={count} min={1} max={64} onChange={setCount} />
-          <TextInput label="对象细节（可选）" value={detailPrompt} onChange={setDetailPrompt} />
         </div>
         <TextArea label="描述" value={description} onChange={setDescription} />
+        <div className="detailTemplateBlock">
+          <div className="detailTemplateHeader">
+            <div>
+              <strong>对象细节模板</strong>
+              <span>点击卡片即可注入下方对象细节 prompt</span>
+            </div>
+            {detailPrompt && (
+              <button className="miniClearButton" type="button" onClick={() => setDetailPrompt("")}>
+                清空
+              </button>
+            )}
+          </div>
+          <div className="detailTemplateGrid">
+            {detailTemplates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                className={detailPrompt === template.prompt ? "detailTemplateCard selected" : "detailTemplateCard"}
+                title="点击注入对象细节 prompt"
+                onClick={() => setDetailPrompt(template.prompt)}
+              >
+                <strong>{template.name}</strong>
+                <span>{template.prompt}</span>
+                <small>{template.meta}</small>
+                <em>点击注入 prompt</em>
+              </button>
+            ))}
+          </div>
+        </div>
+        <TextArea label="对象细节 prompt（可选，可编辑）" value={detailPrompt} onChange={setDetailPrompt} />
         <Toggle label="透明背景" value={transparentBackground} onChange={setTransparentBackground} />
         <TargetPicker value={targets} onChange={setTargets} />
 
