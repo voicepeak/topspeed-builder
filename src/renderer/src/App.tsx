@@ -568,23 +568,21 @@ function GeneratePage(props: {
           <TextInput label="素材名称" value={name} onChange={setName} />
           <TextInput label="尺寸" value={size} onChange={setSize} />
           <NumberInput label="数量" value={count} min={1} max={64} onChange={setCount} />
-          <TextInput label="风格" value={style} onChange={setStyle} />
-        </div>
-        {props.project.styleTemplates.length > 0 && (
-          <div>
-            <span style={{ fontFamily: "'Tektur','Bahnschrift',sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 6 }}>选择风格模板</span>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {props.project.styleTemplates.map((t) => (
-                <button
-                  key={t.id}
-                  className="ghostButton"
-                  style={{ fontSize: 11, minHeight: 30, padding: "0 10px", borderColor: style === t.description ? "var(--cyan)" : undefined, color: style === t.description ? "var(--cyan)" : undefined }}
-                  onClick={() => setStyle(t.description)}
-                >{t.name}</button>
-              ))}
-            </div>
+          <div className="field">
+            <span>风格</span>
+            <input type="text" value={style} onChange={(e) => setStyle(e.target.value)} />
+            {props.project.styleTemplates.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                {props.project.styleTemplates.map((t) => (
+                  <button key={t.id} type="button"
+                    style={{ fontSize: 10, minHeight: 22, padding: "0 8px", border: "1px solid", borderColor: style === t.description ? "var(--cyan)" : "var(--steel)", borderRadius: 4, background: style === t.description ? "var(--cyan-dim)" : "transparent", color: style === t.description ? "var(--cyan)" : "var(--muted)", cursor: "pointer", fontFamily: "inherit", lineHeight: 1 }}
+                    onClick={() => setStyle(t.description)}
+                  >{t.name}</button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
         <TextArea label="描述" value={description} onChange={setDescription} />
         <Toggle label="透明背景" value={transparentBackground} onChange={setTransparentBackground} />
         <TargetPicker value={targets} onChange={setTargets} />
