@@ -54,6 +54,7 @@ export class AIGenerationService {
     }
 
     const endpoint = args.settings.apiBaseUrl || "https://api.openai.com/v1/images/generations";
+    this.assertHttpEndpoint(endpoint, "OpenAI API Base URL");
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -73,10 +74,17 @@ export class AIGenerationService {
 
     const responseText = await response.text();
     if (!response.ok) {
-      throw new Error(`OpenAI 图片生成失败: HTTP ${response.status} ${responseText}`);
+      throw new Error(
+        `OpenAI 图片生成失败: HTTP ${response.status} ${response.statusText}. ${this.summarizeBody(responseText)}`
+      );
     }
 
-    const payload = JSON.parse(responseText);
+    const payload = this.parseJsonResponse(responseText, {
+      provider: "OpenAI",
+      endpoint,
+      status: response.status,
+      contentType: response.headers.get("content-type") ?? ""
+    });
     const image = payload.data?.[0];
 
     if (image?.b64_json) {
@@ -86,7 +94,7 @@ export class AIGenerationService {
     if (image?.url) {
       const imageResponse = await fetch(image.url);
       if (!imageResponse.ok) {
-        throw new Error(`下载 OpenAI 图片失败: HTTP ${imageResponse.status}`);
+        throw new Error(`下载 OpenAI 图片失败: HTTP ${imageResponse.status} ${imageResponse.statusText}`);
       }
       return Buffer.from(await imageResponse.arrayBuffer());
     }
@@ -99,7 +107,9 @@ export class AIGenerationService {
       throw new Error("自定义 API 地址为空。请在设置页配置 apiBaseUrl。");
     }
 
-    const response = await fetch(args.settings.apiBaseUrl, {
+    const endpoint = args.settings.apiBaseUrl.trim();
+    this.assertHttpEndpoint(endpoint, "自定义 API Base URL");
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -114,15 +124,23 @@ export class AIGenerationService {
     });
 
     const contentType = response.headers.get("content-type") ?? "";
-    if (!response.ok) {
-      throw new Error(`自定义图片 API 失败: HTTP ${response.status} ${await response.text()}`);
-    }
-
     if (contentType.includes("image/")) {
       return Buffer.from(await response.arrayBuffer());
     }
 
-    const payload = await response.json();
+    const responseText = await response.text();
+    if (!response.ok) {
+      throw new Error(
+        `自定义图片 API 失败: HTTP ${response.status} ${response.statusText}. ${this.summarizeBody(responseText)}`
+      );
+    }
+
+    const payload = this.parseJsonResponse(responseText, {
+      provider: "自定义 API",
+      endpoint,
+      status: response.status,
+      contentType
+    });
     const b64 = payload.b64_json ?? payload.image ?? payload.data?.[0]?.b64_json;
     const url = payload.url ?? payload.data?.[0]?.url;
 
@@ -133,12 +151,46 @@ export class AIGenerationService {
     if (url) {
       const imageResponse = await fetch(url);
       if (!imageResponse.ok) {
-        throw new Error(`下载自定义 API 图片失败: HTTP ${imageResponse.status}`);
+        throw new Error(`下载自定义 API 图片失败: HTTP ${imageResponse.status} ${imageResponse.statusText}`);
       }
       return Buffer.from(await imageResponse.arrayBuffer());
     }
 
     throw new Error("自定义 API 响应不含 image / b64_json / url。");
+  }
+
+  private assertHttpEndpoint(endpoint: string, label: string): void {
+    let url: URL;
+    try {
+      url = new URL(endpoint);
+    } catch {
+      throw new Error(`${label} 不是有效 URL：${endpoint}`);
+    }
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      throw new Error(`${label} 必须以 http:// 或 https:// 开头：${endpoint}`);
+    }
+  }
+
+  private parseJsonResponse(
+    responseText: string,
+    context: { provider: string; endpoint: string; status: number; contentType: string }
+  ): any {
+    try {
+      return JSON.parse(responseText);
+    } catch {
+      const responseKind = responseText.trimStart().startsWith("<") ? "HTML 页面" : "非 JSON 内容";
+      throw new Error(
+        `${context.provider} 返回了${responseKind}，无法解析图片结果。请检查设置页的 API Base URL 是否是图片生成接口，不要填网页地址。` +
+          ` 当前 URL: ${context.endpoint}; HTTP ${context.status}; Content-Type: ${context.contentType || "unknown"}; ` +
+          this.summarizeBody(responseText)
+      );
+    }
+  }
+
+  private summarizeBody(body: string): string {
+    const summary = body.replace(/\s+/g, " ").trim().slice(0, 220);
+    return summary ? `响应摘要: ${summary}` : "响应正文为空。";
   }
 
   private mapProviderSize(size: string): string {
