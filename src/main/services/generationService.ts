@@ -470,7 +470,7 @@ export class GenerationService {
     const settings = await this.settingsService.getSettings();
     let lastError: unknown;
 
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
       try {
         return await this.aiService.generateImage({
           prompt,
@@ -480,6 +480,14 @@ export class GenerationService {
         });
       } catch (error) {
         lastError = error;
+        if (attempt < 4 && this.isRateLimitError(error)) {
+          await this.sleep(5000 * attempt);
+          continue;
+        }
+
+        if (attempt >= 2 && !this.isRateLimitError(error)) {
+          break;
+        }
       }
     }
 
@@ -488,10 +496,21 @@ export class GenerationService {
 
   private resolveIconNames(input: GenerateAssetInput): string[] {
     if (input.iconItems.length > 0) {
-      return input.iconItems.slice(0, Math.max(input.count, input.iconItems.length));
+      return input.iconItems.slice(0, Math.max(input.count, 1));
     }
 
     return Array.from({ length: Math.max(input.count, 1) }, (_, index) => `${input.name || "icon"} ${index + 1}`);
+  }
+
+  private isRateLimitError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes("HTTP 429") || message.toLowerCase().includes("too many requests");
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
   }
 
   private formatError(error: unknown): string {
