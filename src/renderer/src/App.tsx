@@ -845,6 +845,7 @@ function AssetCard(props: {
           className="ghostButton"
           style={{ borderColor: "rgba(255,45,149,0.3)", color: "var(--magenta)" }}
           onClick={async () => {
+            if (!window.confirm(`确认删除素材「${props.asset.name}」？\n关联的本地文件将被一并移除，此操作不可撤销。`)) return;
             const result = await props.runTask(
               "删除素材",
               () => unwrap(window.aiSpriteStudio.deleteAsset(props.project.path, props.asset.id)),

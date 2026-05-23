@@ -7,6 +7,7 @@ import {
   ensureProjectDirectories,
   nowIso,
   readJsonFile,
+  resolveProjectPath,
   sanitizeFileName,
   uniqueByPath,
   writeJsonFile
@@ -176,10 +177,14 @@ export class ProjectService {
     const project = await this.openProjectPath(projectPath);
     const asset = project.assets.find((a) => a.id === assetId);
     if (asset) {
-      const dir = path.dirname(projectPath.endsWith("project.json") ? projectPath : path.join(projectPath, "project.json"));
-      for (const file of asset.files) {
-        const absPath = path.isAbsolute(file) ? file : path.join(path.dirname(dir), file);
-        try { await fs.remove(absPath); } catch { /* file may not exist */ }
+      const allPaths = [
+        ...asset.files,
+        asset.metadataPath,
+        asset.atlasPath,
+        asset.sheetPath
+      ].filter(Boolean) as string[];
+      for (const file of allPaths) {
+        try { await fs.remove(resolveProjectPath(project.path, file)); } catch { /* may not exist */ }
       }
     }
     return this.saveProject({ ...project, assets: project.assets.filter((a) => a.id !== assetId) });
