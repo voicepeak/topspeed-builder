@@ -37,7 +37,7 @@ import type {
   StyleTemplate
 } from "@shared/types";
 
-type Page = "home" | "project" | "generate" | "preview" | "style" | "export" | "history" | "settings";
+type Page = "home" | "project" | "generate" | "preview" | "export" | "history" | "settings";
 
 const exportTargets: ExportTarget[] = ["unity", "godot", "tiled", "phaser", "cocos", "common"];
 const assetTypes: Array<{ value: AssetType; label: string }> = [
@@ -98,7 +98,6 @@ function App(): JSX.Element {
       { page: "project" as Page, label: "项目配置", icon: Gauge, enabled: Boolean(project) },
       { page: "generate" as Page, label: "素材生成", icon: Wand2, enabled: Boolean(project) },
       { page: "preview" as Page, label: "预览", icon: Image, enabled: Boolean(project) },
-      { page: "style" as Page, label: "风格", icon: Brush, enabled: Boolean(project) },
       { page: "export" as Page, label: "导出", icon: Download, enabled: Boolean(project) },
       { page: "history" as Page, label: "历史", icon: History, enabled: Boolean(project) },
       { page: "settings" as Page, label: "设置", icon: Settings, enabled: true }
@@ -254,15 +253,6 @@ function App(): JSX.Element {
           />
         )}
         {page === "preview" && project && <PreviewPage project={project} runTask={runTask} refreshProject={refreshProject} />}
-        {page === "style" && project && (
-          <StylePage
-            project={project}
-            runTask={runTask}
-            onSaved={(nextProject) => {
-              setProject(nextProject);
-            }}
-          />
-        )}
         {page === "export" && project && <ExportPage project={project} runTask={runTask} />}
         {page === "history" && project && <HistoryPage project={project} history={history} />}
         {page === "settings" && (
@@ -415,7 +405,21 @@ function ProjectPage(props: {
   onSaved: (project: Project) => void;
 }): JSX.Element {
   const [draft, setDraft] = useState<Project>(props.project);
+  const [newTemplate, setNewTemplate] = useState({ name: "赛博朋克霓虹风", description: "cyberpunk neon 2D game art, clean silhouette" });
+
   useEffect(() => setDraft(props.project), [props.project]);
+
+  function addTemplate(): void {
+    const template: StyleTemplate = {
+      id: crypto.randomUUID(),
+      name: newTemplate.name,
+      description: newTemplate.description,
+      lineWeight: "consistent outlines",
+      lighting: "single key light",
+      cameraView: "project default"
+    };
+    setDraft({ ...draft, styleTemplates: [template, ...draft.styleTemplates] });
+  }
 
   return (
     <section className="panel wide">
@@ -443,8 +447,37 @@ function ProjectPage(props: {
         />
         <TextInput label="项目路径" value={draft.path} disabled onChange={() => undefined} />
       </div>
-      <TextArea label="项目风格描述" value={draft.styleDescription} onChange={(styleDescription) => setDraft({ ...draft, styleDescription })} />
+      <TextArea label="项目风格描述（将注入所有 AI 生成 prompt）" value={draft.styleDescription} onChange={(styleDescription) => setDraft({ ...draft, styleDescription })} />
       <TargetPicker value={draft.exportTargets} onChange={(exportTargets) => setDraft({ ...draft, exportTargets })} />
+
+      <div className="panelTitle" style={{ border: "none", padding: "12px 0 0", marginTop: 4 }}>
+        <div className="panelIcon"><Brush size={18} /></div>
+        <div><h2>风格模板</h2><p>预置风格组合，方便复用到不同素材</p></div>
+      </div>
+      <div className="formGrid">
+        <TextInput label="模板名称" value={newTemplate.name} onChange={(name) => setNewTemplate({ ...newTemplate, name })} />
+        <TextInput label="描述" value={newTemplate.description} onChange={(description) => setNewTemplate({ ...newTemplate, description })} />
+        <button className="ghostButton" style={{ alignSelf: "end" }} onClick={addTemplate}>
+          <Plus size={16} />
+          添加模板
+        </button>
+      </div>
+      <div className="templateGrid">
+        {draft.styleTemplates.length === 0 && <EmptyState text="还没有风格模板" />}
+        {draft.styleTemplates.map((template) => (
+          <article key={template.id} className="templateItem" style={{ position: "relative" }}>
+            <button
+              className="ghostButton"
+              style={{ position: "absolute", top: 6, right: 6, width: 28, minHeight: 28, padding: 0, borderColor: "transparent", color: "var(--magenta)" }}
+              onClick={() => setDraft({ ...draft, styleTemplates: draft.styleTemplates.filter((t) => t.id !== template.id) })}
+            ><Trash2 size={13} /></button>
+            <strong>{template.name}</strong>
+            <span>{template.description}</span>
+            <small>{template.lineWeight ?? "line"} · {template.lighting ?? "light"} · {template.cameraView ?? "view"}</small>
+          </article>
+        ))}
+      </div>
+
       <button
         className="primaryButton"
         onClick={async () => {
@@ -622,67 +655,6 @@ function PreviewPage(props: {
   );
 }
 
-function StylePage(props: {
-  project: Project;
-  runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
-  onSaved: (project: Project) => void;
-}): JSX.Element {
-  const [draft, setDraft] = useState<Project>(props.project);
-  const [newTemplate, setNewTemplate] = useState({ name: "赛博朋克霓虹风", description: "cyberpunk neon 2D game art, clean silhouette" });
-
-  useEffect(() => setDraft(props.project), [props.project]);
-
-  function addTemplate(): void {
-    const template: StyleTemplate = {
-      id: crypto.randomUUID(),
-      name: newTemplate.name,
-      description: newTemplate.description,
-      lineWeight: "consistent outlines",
-      lighting: "single key light",
-      cameraView: "project default"
-    };
-    setDraft({ ...draft, styleTemplates: [template, ...draft.styleTemplates] });
-  }
-
-  return (
-    <section className="panel wide">
-      <PanelTitle icon={Brush} title="风格管理" subtitle="项目级风格会参与所有生成 prompt" />
-      <TextArea label="项目风格描述" value={draft.styleDescription} onChange={(styleDescription) => setDraft({ ...draft, styleDescription })} />
-      <div className="formGrid">
-        <TextInput label="模板名称" value={newTemplate.name} onChange={(name) => setNewTemplate({ ...newTemplate, name })} />
-        <TextInput
-          label="模板描述"
-          value={newTemplate.description}
-          onChange={(description) => setNewTemplate({ ...newTemplate, description })}
-        />
-        <button className="ghostButton" onClick={addTemplate}>
-          <Plus size={16} />
-          添加模板
-        </button>
-      </div>
-      <div className="templateGrid">
-        {draft.styleTemplates.map((template) => (
-          <article key={template.id} className="templateItem">
-            <strong>{template.name}</strong>
-            <span>{template.description}</span>
-            <small>{template.lineWeight ?? "line"} · {template.lighting ?? "light"} · {template.cameraView ?? "view"}</small>
-          </article>
-        ))}
-      </div>
-      <button
-        className="primaryButton"
-        onClick={async () => {
-          const saved = await props.runTask("保存风格", () => unwrap(window.aiSpriteStudio.saveProject(draft)));
-          if (saved) props.onSaved(saved);
-        }}
-      >
-        <Save size={18} />
-        保存风格
-      </button>
-    </section>
-  );
-}
-
 function ExportPage(props: {
   project: Project;
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
@@ -828,6 +800,13 @@ function AssetCard(props: {
         {props.asset.atlasPath && <Pill>Atlas</Pill>}
         {props.asset.metadataPath && <Pill>JSON</Pill>}
       </div>
+      {props.asset.exportTargets && props.asset.exportTargets.length > 0 && (
+        <div className="assetActions" style={{ gap: 4 }}>
+          {props.asset.exportTargets.map((t) => (
+            <span key={t} className="pill" style={{ borderColor: "rgba(0,212,255,0.25)", color: "var(--cyan)", background: "var(--cyan-dim)" }}>{t}</span>
+          ))}
+        </div>
+      )}
       <div className="assetActions" style={{ marginTop: "auto" }}>
         <button
           className="ghostButton"
@@ -1017,7 +996,6 @@ function pageLabel(page: Page): string {
     project: "Project Settings",
     generate: "Generate Assets",
     preview: "Preview",
-    style: "Style Library",
     export: "Export",
     history: "History",
     settings: "App Settings"
