@@ -465,13 +465,14 @@ function GeneratePage(props: {
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
   onGenerated: () => Promise<void>;
 }): JSX.Element {
+  const defaultPresets = useMemo(() => presetsFor("icon", props.project.defaultResolution), []);
   const [assetType, setAssetType] = useState<AssetType>("icon");
-  const [name, setName] = useState("rpg_items");
-  const [description, setDescription] = useState("medieval RPG inventory items, readable silhouettes");
+  const [name, setName] = useState(defaultPresets.name);
+  const [description, setDescription] = useState(defaultPresets.description);
   const [style, setStyle] = useState(props.project.style);
-  const [size, setSize] = useState(props.project.defaultResolution);
+  const [size, setSize] = useState(defaultPresets.size);
   const [count, setCount] = useState(props.settings.defaultGenerationCount);
-  const [transparentBackground, setTransparentBackground] = useState(true);
+  const [transparentBackground, setTransparentBackground] = useState(defaultPresets.transparentBackground);
   const [targets, setTargets] = useState<ExportTarget[]>(props.project.exportTargets);
   const [iconItemsText, setIconItemsText] = useState("potion\ncoin\nkey\nshort sword\nshield\nscroll\nmagic stone");
   const [makeAtlas, setMakeAtlas] = useState(props.settings.autoPackAtlas);
@@ -483,29 +484,14 @@ function GeneratePage(props: {
   const [tileSeamless, setTileSeamless] = useState(true);
   const [makeTiled, setMakeTiled] = useState(true);
 
-  useEffect(() => {
-    if (assetType === "character") {
-      setName("knight");
-      setDescription("silver armor knight with short sword");
-      setSize("64x64");
-      setTransparentBackground(true);
-    } else if (assetType === "tileset") {
-      setName("dungeon");
-      setDescription("stone dungeon modular tile set");
-      setSize("32x32");
-      setTransparentBackground(false);
-    } else if (assetType === "icon" || assetType === "item") {
-      setName("rpg_items");
-      setDescription("medieval RPG inventory items, readable silhouettes");
-      setSize(props.project.defaultResolution);
-      setTransparentBackground(true);
-    } else if (assetType === "enemy") {
-      setName("slime");
-      setDescription("small dungeon slime enemy, readable silhouette");
-      setSize(props.project.defaultResolution);
-      setTransparentBackground(true);
-    }
-  }, [assetType, props.project.defaultResolution]);
+  function handleAssetTypeChange(newType: AssetType): void {
+    setAssetType(newType);
+    const { name: n, description: d, size: s, transparentBackground: t } = presetsFor(newType, props.project.defaultResolution);
+    setName(n);
+    setDescription(d);
+    setSize(s);
+    setTransparentBackground(t);
+  }
 
   const input: GenerateAssetInput = {
     projectPath: props.project.path,
@@ -539,7 +525,7 @@ function GeneratePage(props: {
         )}
         <div className="typeRail">
           {assetTypes.map((type) => (
-            <button key={type.value} className={assetType === type.value ? "selected" : ""} onClick={() => setAssetType(type.value)}>
+            <button key={type.value} className={assetType === type.value ? "selected" : ""} onClick={() => handleAssetTypeChange(type.value)}>
               {type.label}
             </button>
           ))}
@@ -1012,6 +998,27 @@ function pageLabel(page: Page): string {
     settings: "App Settings"
   };
   return labels[page];
+}
+
+function presetsFor(type: AssetType, defaultSize: string): { name: string; description: string; size: string; transparentBackground: boolean } {
+  switch (type) {
+    case "character":
+      return { name: "knight", description: "silver armor knight with short sword", size: "64x64", transparentBackground: true };
+    case "tileset":
+      return { name: "dungeon", description: "stone dungeon modular tile set", size: "32x32", transparentBackground: false };
+    case "icon":
+      return { name: "rpg_items", description: "medieval RPG inventory icons, readable silhouettes", size: defaultSize, transparentBackground: true };
+    case "item":
+      return { name: "rpg_items", description: "medieval RPG inventory props, readable silhouettes", size: defaultSize, transparentBackground: true };
+    case "enemy":
+      return { name: "slime", description: "small dungeon slime enemy, readable silhouette", size: defaultSize, transparentBackground: true };
+    case "ui":
+      return { name: "ui_panel", description: "game UI panel elements, clean flat style", size: defaultSize, transparentBackground: true };
+    case "background":
+      return { name: "forest_bg", description: "side-scrolling forest background layer", size: "128x128", transparentBackground: false };
+    case "effect":
+      return { name: "fire_effect", description: "fire explosion particle sprite sheet", size: "64x64", transparentBackground: true };
+  }
 }
 
 function splitLines(value: string): string[] {
