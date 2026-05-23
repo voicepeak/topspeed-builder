@@ -21,6 +21,7 @@ declare global {
       openProjectDialog(): Promise<IpcResponse<Project>>;
       openProjectPath(projectPath: string): Promise<IpcResponse<Project>>;
       saveProject(project: Project): Promise<IpcResponse<Project>>;
+      deleteAsset(projectPath: string, assetId: string): Promise<IpcResponse<Project>>;
       getRecentProjects(): Promise<IpcResponse<RecentProject[]>>;
       removeRecentProject(projectPath: string): Promise<IpcResponse<RecentProject[]>>;
       getSettings(): Promise<IpcResponse<AppSettings>>;

@@ -76,6 +76,8 @@ function registerIpc(): void {
   handle("settings:get", () => settingsService.getSettings());
   handle("settings:save", (settings: AppSettings) => settingsService.saveSettings(settings));
 
+  handle("project:deleteAsset", (projectPath: string, assetId: string) => projectService.deleteAsset(projectPath, assetId));
+
   handle("generate:assets", (input: GenerateAssetInput) => generationService.generate(input));
   handle("history:get", (projectPath: string) => historyService.getHistory(projectPath));
 

@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("aiSpriteStudio", {
   getHistory: (projectPath: string) => ipcRenderer.invoke("history:get", projectPath),
   readImageDataUrl: (projectPath: string, filePath: string) =>
     ipcRenderer.invoke("image:dataUrl", projectPath, filePath),
+  deleteAsset: (projectPath: string, assetId: string) => ipcRenderer.invoke("project:deleteAsset", projectPath, assetId),
   showItemInFolder: (filePath: string) => ipcRenderer.invoke("shell:showItem", filePath),
   openPath: (filePath: string) => ipcRenderer.invoke("shell:openPath", filePath)
 });

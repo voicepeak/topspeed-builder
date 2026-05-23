@@ -605,7 +605,13 @@ function PreviewPage(props: {
       <div className="assetGrid">
         {props.project.assets.length === 0 && <EmptyState text="还没有生成素材" />}
         {props.project.assets.map((asset) => (
-          <AssetCard key={asset.id} project={props.project} asset={asset} runTask={props.runTask} />
+          <AssetCard
+            key={asset.id}
+            project={props.project}
+            asset={asset}
+            runTask={props.runTask}
+            onDelete={async () => { await props.refreshProject(); }}
+          />
         ))}
       </div>
       <button className="ghostButton" onClick={() => props.refreshProject()}>
@@ -792,6 +798,7 @@ function AssetCard(props: {
   project: Project;
   asset: Asset;
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
+  onDelete?: () => Promise<void>;
 }): JSX.Element {
   const pngFile = props.asset.files.find((file) => file.endsWith(".png"));
   const [dataUrl, setDataUrl] = useState("");
@@ -821,18 +828,36 @@ function AssetCard(props: {
         {props.asset.atlasPath && <Pill>Atlas</Pill>}
         {props.asset.metadataPath && <Pill>JSON</Pill>}
       </div>
-      <button
-        className="ghostButton"
-        onClick={() => {
-          const file = props.asset.metadataPath ?? pngFile;
-          if (file) {
-            void props.runTask("打开文件位置", () => unwrap(window.aiSpriteStudio.showItemInFolder(resolveFile(props.project.path, file))));
-          }
-        }}
-      >
-        <FolderOpen size={15} />
-        定位
-      </button>
+      <div className="assetActions" style={{ marginTop: "auto" }}>
+        <button
+          className="ghostButton"
+          onClick={() => {
+            const file = props.asset.metadataPath ?? pngFile;
+            if (file) {
+              void props.runTask("打开文件位置", () => unwrap(window.aiSpriteStudio.showItemInFolder(resolveFile(props.project.path, file))));
+            }
+          }}
+        >
+          <FolderOpen size={15} />
+          定位
+        </button>
+        <button
+          className="ghostButton"
+          style={{ borderColor: "rgba(255,45,149,0.3)", color: "var(--magenta)" }}
+          onClick={async () => {
+            if (!window.confirm(`确认删除素材「${props.asset.name}」？\n关联的本地文件将被一并移除，此操作不可撤销。`)) return;
+            const result = await props.runTask(
+              "删除素材",
+              () => unwrap(window.aiSpriteStudio.deleteAsset(props.project.path, props.asset.id)),
+              () => "已删除"
+            );
+            if (result && props.onDelete) await props.onDelete();
+          }}
+        >
+          <Trash2 size={15} />
+          删除
+        </button>
+      </div>
     </article>
   );
 }
