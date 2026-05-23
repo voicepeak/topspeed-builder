@@ -172,6 +172,19 @@ export class ProjectService {
     return existing;
   }
 
+  async deleteAsset(projectPath: string, assetId: string): Promise<Project> {
+    const project = await this.openProjectPath(projectPath);
+    const asset = project.assets.find((a) => a.id === assetId);
+    if (asset) {
+      const dir = path.dirname(projectPath.endsWith("project.json") ? projectPath : path.join(projectPath, "project.json"));
+      for (const file of asset.files) {
+        const absPath = path.isAbsolute(file) ? file : path.join(path.dirname(dir), file);
+        try { await fs.remove(absPath); } catch { /* file may not exist */ }
+      }
+    }
+    return this.saveProject({ ...project, assets: project.assets.filter((a) => a.id !== assetId) });
+  }
+
   async removeRecentProject(projectPath: string): Promise<RecentProject[]> {
     const recent = await this.getRecentProjects();
     const next = recent.filter((item) => path.normalize(item.path) !== path.normalize(projectPath));
