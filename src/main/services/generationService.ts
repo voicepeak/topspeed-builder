@@ -77,7 +77,7 @@ export class GenerationService {
         assetType: input.assetType,
         name: itemName,
         description: `${input.description}. Item list context: ${itemNames.join(", ")}`,
-        style: input.style || project.style,
+        style: this.buildStylePrompt(project, input),
         size: input.size,
         transparentBackground: input.transparentBackground,
         extra: "Single centered icon. Orthographic game inventory asset. Keep consistent palette with the batch."
@@ -126,7 +126,8 @@ export class GenerationService {
     const metadata = {
       name: input.name,
       type: input.assetType,
-      style: input.style,
+      style: project.style,
+      detailPrompt: this.resolveDetailPrompt(input),
       size,
       files,
       atlas: atlasPath,
@@ -181,7 +182,7 @@ export class GenerationService {
           assetType: "character animation frame",
           name: input.name,
           description: input.description,
-          style: input.style || project.style,
+          style: this.buildStylePrompt(project, input),
           size: input.size,
           transparentBackground: input.transparentBackground,
           extra: [
@@ -246,7 +247,8 @@ export class GenerationService {
     await writeJsonFile(metadataPath, {
       name: input.name,
       type: "character",
-      style: input.style,
+      style: project.style,
+      detailPrompt: this.resolveDetailPrompt(input),
       size,
       files,
       sheet: sheetPath,
@@ -304,7 +306,7 @@ export class GenerationService {
         assetType: "tileset tile",
         name: tileType,
         description: `${input.tileTheme || input.description} ${tileType}`,
-        style: input.style || project.style,
+        style: this.buildStylePrompt(project, input),
         size: input.size,
         transparentBackground: false,
         extra: [
@@ -393,7 +395,7 @@ export class GenerationService {
         assetType: input.assetType,
         name: input.name,
         description: input.description,
-        style: input.style || project.style,
+        style: this.buildStylePrompt(project, input),
         size: input.size,
         transparentBackground: input.transparentBackground,
         extra: "Game-ready reusable 2D asset."
@@ -437,7 +439,8 @@ export class GenerationService {
     await writeJsonFile(metadataPath, {
       name: input.name,
       type: input.assetType,
-      style: input.style,
+      style: project.style,
+      detailPrompt: this.resolveDetailPrompt(input),
       size,
       files,
       atlas: atlasPath,
@@ -551,7 +554,7 @@ export class GenerationService {
       name: input.name,
       type: input.assetType,
       description: input.description,
-      style: input.style || args.project.style,
+      style: this.resolveAssetStyle(args.project, input),
       size,
       files: args.files,
       metadataPath: args.metadataPath,
@@ -581,7 +584,7 @@ export class GenerationService {
       assetType: input.assetType,
       prompt: asset.prompt,
       parameters: input,
-      style: input.style,
+      style: asset.style,
       outputFiles,
       exportTargets: input.exportTargets,
       favorite: false,
@@ -590,5 +593,43 @@ export class GenerationService {
 
     await this.historyService.append(project.path, historyRecord);
     logs.push(`保存历史记录: ${path.join(project.path, "history", `${asset.id}.json`)}`);
+  }
+
+  private buildStylePrompt(project: Project, input: GenerateAssetInput): string {
+    const detailPrompt = this.resolveDetailPrompt(input);
+    const projectStyleParts = this.uniqueNonEmpty([project.style, project.styleDescription]);
+    const parts = [
+      ...projectStyleParts.map((part) => `Project style: ${part}`),
+      detailPrompt ? `Object-specific details: ${detailPrompt}` : ""
+    ];
+    return parts.filter(Boolean).join("\n");
+  }
+
+  private resolveAssetStyle(project: Project, input: GenerateAssetInput): string {
+    const detailPrompt = this.resolveDetailPrompt(input);
+    return detailPrompt ? `${project.style} | ${detailPrompt}` : project.style;
+  }
+
+  private resolveDetailPrompt(input: GenerateAssetInput): string {
+    const legacyStyle = (input as GenerateAssetInput & { style?: string }).style;
+    return (input.detailPrompt || legacyStyle || "").trim();
+  }
+
+  private uniqueNonEmpty(values: Array<string | undefined>): string[] {
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const value of values) {
+      const normalized = value?.trim();
+      if (!normalized) continue;
+
+      const key = normalized.toLowerCase();
+      if (seen.has(key)) continue;
+
+      seen.add(key);
+      result.push(normalized);
+    }
+
+    return result;
   }
 }

@@ -107,7 +107,7 @@ export interface GenerateAssetInput {
   assetType: AssetType;
   name: string;
   description: string;
-  style: string;
+  detailPrompt: string;
   size: string;
   count: number;
   transparentBackground: boolean;

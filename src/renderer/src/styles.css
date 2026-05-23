@@ -344,6 +344,16 @@ button { color: inherit; }
   font-size: 13px;
 }
 
+.inlineNote {
+  padding: 12px 14px;
+  border: 2px solid rgba(0, 212, 255, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.09), transparent);
+  color: var(--muted);
+  line-height: 1.45;
+  font-size: 13px;
+}
+
 /* === PAGE LAYOUTS === */
 .pageGrid {
   display: grid;

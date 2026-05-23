@@ -527,7 +527,7 @@ function GeneratePage(props: {
   const [assetType, setAssetType] = useState<AssetType>("icon");
   const [name, setName] = useState(defaultPresets.name);
   const [description, setDescription] = useState(defaultPresets.description);
-  const [style, setStyle] = useState(props.project.style);
+  const [detailPrompt, setDetailPrompt] = useState("");
   const [size, setSize] = useState(defaultPresets.size);
   const [count, setCount] = useState(props.settings.defaultGenerationCount);
   const [transparentBackground, setTransparentBackground] = useState(defaultPresets.transparentBackground);
@@ -556,7 +556,7 @@ function GeneratePage(props: {
     assetType,
     name,
     description,
-    style,
+    detailPrompt,
     size,
     count,
     transparentBackground,
@@ -589,28 +589,14 @@ function GeneratePage(props: {
           ))}
         </div>
 
-        <div className="subPanel" style={{ padding: 10, gap: 6 }}>
-          <span style={{ fontSize: 11, color: "var(--muted)" }}>
-            {props.project.styleTemplates.length > 0
-              ? "💡 点击风格模板快速填充 —"
-              : "💡 尚无风格模板，请先在项目配置页添加"}
-          </span>
-          {props.project.styleTemplates.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {props.project.styleTemplates.map((t) => (
-                <button key={t.id} type="button" title="点击填入风格描述"
-                  style={{ fontSize: 11, minHeight: 28, padding: "0 12px", border: "1px solid", borderColor: style === t.description ? "var(--cyan)" : "var(--steel)", borderRadius: 6, background: style === t.description ? "var(--cyan-dim)" : "transparent", color: style === t.description ? "var(--cyan)" : "var(--text)", cursor: "pointer", fontFamily: "inherit", fontWeight: 500, transition: "all 140ms ease" }}
-                  onClick={() => setStyle(t.description)}
-                >{t.name}</button>
-              ))}
-            </div>
-          )}
+        <div className="inlineNote">
+          项目风格会自动注入生成 prompt；这里填写当前素材独有的造型、材质、姿态或构图细节。
         </div>
         <div className="formGrid">
           <TextInput label="素材名称" value={name} onChange={setName} />
           <TextInput label="尺寸" value={size} onChange={setSize} />
           <NumberInput label="数量" value={count} min={1} max={64} onChange={setCount} />
-          <TextInput label="风格" value={style} onChange={setStyle} />
+          <TextInput label="对象细节（可选）" value={detailPrompt} onChange={setDetailPrompt} />
         </div>
         <TextArea label="描述" value={description} onChange={setDescription} />
         <Toggle label="透明背景" value={transparentBackground} onChange={setTransparentBackground} />
