@@ -570,6 +570,21 @@ function GeneratePage(props: {
           <NumberInput label="数量" value={count} min={1} max={64} onChange={setCount} />
           <TextInput label="风格" value={style} onChange={setStyle} />
         </div>
+        {props.project.styleTemplates.length > 0 && (
+          <div>
+            <span style={{ fontFamily: "'Tektur','Bahnschrift',sans-serif", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--muted)", display: "block", marginBottom: 6 }}>选择风格模板</span>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {props.project.styleTemplates.map((t) => (
+                <button
+                  key={t.id}
+                  className="ghostButton"
+                  style={{ fontSize: 11, minHeight: 30, padding: "0 10px", borderColor: style === t.description ? "var(--cyan)" : undefined, color: style === t.description ? "var(--cyan)" : undefined }}
+                  onClick={() => setStyle(t.description)}
+                >{t.name}</button>
+              ))}
+            </div>
+          </div>
+        )}
         <TextArea label="描述" value={description} onChange={setDescription} />
         <Toggle label="透明背景" value={transparentBackground} onChange={setTransparentBackground} />
         <TargetPicker value={targets} onChange={setTargets} />
