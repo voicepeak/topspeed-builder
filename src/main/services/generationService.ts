@@ -481,7 +481,7 @@ export class GenerationService {
       } catch (error) {
         lastError = error;
         if (attempt < 4 && this.isRateLimitError(error)) {
-          await this.sleep(5000 * attempt);
+          await this.sleep(8000 * attempt);
           continue;
         }
 
@@ -489,6 +489,19 @@ export class GenerationService {
           break;
         }
       }
+    }
+
+    if (this.isRateLimitError(lastError)) {
+      const draftSettings = {
+        ...settings,
+        aiProvider: "local-draft" as const
+      };
+      return this.aiService.generateImage({
+        prompt: `${prompt}\n\nFallback local draft after API rate limit.`,
+        size,
+        transparentBackground,
+        settings: draftSettings
+      });
     }
 
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
