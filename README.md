@@ -17,6 +17,10 @@
   <a href="#zh">🇨🇳 中文</a> · <a href="#en">🇬🇧 English</a>
 </p>
 
+<p align="center">
+  <img src="./docs/readme-hero.svg" alt="AI Sprite Studio animated pipeline banner" width="100%" />
+</p>
+
 ---
 
 <h1 align="center" id="zh">AI Sprite Studio</h1>
