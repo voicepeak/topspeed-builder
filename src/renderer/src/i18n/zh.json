@@ -225,5 +225,27 @@
   "summary.mask": "蒙版",
   "summary.detail": "对象细节提示词",
   "summary.refRoles": "参考图用途",
-  "summary.refN": "第 {{n}} 张"
+  "summary.refN": "第 {{n}} 张",
+
+  "generate.detailTemplate": "对象细节模板",
+  "generate.detailTemplateHint": "点击卡片即可注入下方对象细节提示词",
+  "generate.detailInject": "点击注入提示词",
+  "generate.clear": "清空",
+  "generate.detailPrompt": "对象细节提示词（可选，可编辑）",
+  "generate.refImages": "参考图",
+  "generate.refHint": "导入后会复制到当前项目参考图目录",
+  "generate.importRef": "导入参考图",
+  "generate.editIntent": "编辑意图",
+  "generate.refStrength": "参考强度",
+  "generate.noRefs": "还没有参考图",
+  "generate.mask": "局部替换蒙版",
+  "generate.maskHint": "需要带透明通道的 PNG 图片",
+  "generate.selectMask": "选择蒙版",
+  "generate.removeMask": "移除蒙版",
+
+  "busy.importRef": "导入参考图",
+  "busy.importMask": "导入蒙版",
+
+  "message.importedRef": "已导入 {{count}} 张参考图",
+  "message.maskImported": "蒙版已导入"
 }

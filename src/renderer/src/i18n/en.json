@@ -208,5 +208,27 @@
   "summary.refRoles": "Reference Roles",
   "summary.refN": "#{{n}}",
 
+  "generate.detailTemplate": "Detail Templates",
+  "generate.detailTemplateHint": "Click a card to inject detail prompt below",
+  "generate.detailInject": "Click to inject",
+  "generate.clear": "Clear",
+  "generate.detailPrompt": "Detail Prompt (optional, editable)",
+  "generate.refImages": "Reference Images",
+  "generate.refHint": "Copied to project reference directory",
+  "generate.importRef": "Import Images",
+  "generate.editIntent": "Edit Intent",
+  "generate.refStrength": "Reference Strength",
+  "generate.noRefs": "No reference images yet",
+  "generate.mask": "Inpaint Mask",
+  "generate.maskHint": "Requires PNG with alpha channel",
+  "generate.selectMask": "Select Mask",
+  "generate.removeMask": "Remove Mask",
+
+  "busy.importRef": "Importing reference images",
+  "busy.importMask": "Importing mask",
+
+  "message.importedRef": "Imported {{count}} reference images",
+  "message.maskImported": "Mask imported",
+
   "lang.switch": "中"
 }

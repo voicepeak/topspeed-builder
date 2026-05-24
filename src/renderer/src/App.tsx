@@ -94,17 +94,17 @@ const generationModes: Array<{ value: GenerationMode; label: string }> = [
   { value: "image-to-image", label: "mode.image-to-image" }
 ];
 const referenceRoles: Array<{ value: ReferenceImageRole; label: string }> = [
-  { value: "subject", label: "主体参考" },
-  { value: "style", label: "风格参考" },
-  { value: "composition", label: "构图参考" },
-  { value: "palette", label: "色板参考" }
+  { value: "subject", label: "role.subject" },
+  { value: "style", label: "role.style" },
+  { value: "composition", label: "role.composition" },
+  { value: "palette", label: "role.palette" }
 ];
 const editIntentOptions: Array<{ value: EditIntent; label: string }> = [
-  { value: "preserve-subject", label: "保持主体" },
-  { value: "preserve-style", label: "保持风格" },
-  { value: "preserve-composition", label: "保持构图" },
-  { value: "same-series", label: "同系列变体" },
-  { value: "inpaint", label: "局部替换" }
+  { value: "preserve-subject", label: "intent.preserve-subject" },
+  { value: "preserve-style", label: "intent.preserve-style" },
+  { value: "preserve-composition", label: "intent.preserve-composition" },
+  { value: "same-series", label: "intent.same-series" },
+  { value: "inpaint", label: "intent.inpaint" }
 ];
 const editIntentLabels = Object.fromEntries(editIntentOptions.map((option) => [option.value, option.label])) as Record<EditIntent, string>;
 const referenceStrengthOptions: Array<{ value: ReferenceStrength; label: string }> = [
@@ -817,12 +817,12 @@ function GeneratePage(props: {
         <div className="detailTemplateBlock">
           <div className="detailTemplateHeader">
             <div>
-              <strong>对象细节模板</strong>
-              <span>点击卡片即可注入下方对象细节提示词</span>
+              <strong>{t("generate.detailTemplate")}</strong>
+              <span>{t("generate.detailTemplateHint")}</span>
             </div>
             {detailPrompt && (
               <button className="miniClearButton" type="button" onClick={() => setDetailPrompt("")}>
-                清空
+                {t("generate.clear")}
               </button>
             )}
           </div>
@@ -832,18 +832,18 @@ function GeneratePage(props: {
                 key={template.id}
                 type="button"
                 className={detailPrompt === template.prompt ? "detailTemplateCard selected" : "detailTemplateCard"}
-                title="点击注入对象细节提示词"
+                title={t("generate.detailInject")}
                 onClick={() => setDetailPrompt(template.prompt)}
               >
                 <strong>{template.name}</strong>
                 <span>{template.prompt}</span>
                 <small>{template.meta}</small>
-                <em>点击注入提示词</em>
+                <em>{t("generate.detailInject")}</em>
               </button>
             ))}
           </div>
         </div>
-        <TextArea label="对象细节提示词（可选，可编辑）" value={detailPrompt} onChange={setDetailPrompt} />
+        <TextArea label={t("generate.detailPrompt")} value={detailPrompt} onChange={setDetailPrompt} />
         <Toggle label={t("generate.transparent")} value={transparentBackground} onChange={setTransparentBackground} />
         <TargetPicker value={targets} onChange={setTargets} />
 
@@ -972,9 +972,9 @@ function ReferenceImagePanel(props: {
   const { t } = useTranslation();
   async function importReferences(): Promise<void> {
     const imported = await props.runTask(
-      "导入参考图",
+      t("busy.importRef"),
       () => unwrap(window.aiSpriteStudio.chooseReferenceImages(props.project.path)),
-      (result) => `已导入 ${result.length} 张参考图`
+      (result) => t("message.importedRef", { count: result.length })
     );
     if (!imported) return;
 
@@ -990,9 +990,9 @@ function ReferenceImagePanel(props: {
 
   async function importMask(): Promise<void> {
     const imported = await props.runTask(
-      "导入蒙版",
+      t("busy.importMask"),
       () => unwrap(window.aiSpriteStudio.chooseMaskImage(props.project.path)),
-      () => "蒙版已导入"
+      () => t("message.maskImported")
     );
     if (imported) props.onMaskChange(imported);
   }
@@ -1005,30 +1005,30 @@ function ReferenceImagePanel(props: {
     <div className="referencePanel">
       <div className="referenceHeader">
         <div>
-          <strong>参考图</strong>
-          <span>{props.value.length}/4 · 导入后会复制到当前项目参考图目录</span>
+          <strong>{t("generate.refImages")}</strong>
+          <span>{props.value.length}/4 · {t("generate.refHint")}</span>
         </div>
         <div className="referenceActions">
           <button className="ghostButton" type="button" onClick={importReferences} disabled={props.value.length >= 4}>
             <Plus size={15} />
-            导入参考图
+            {t("generate.importRef")}
           </button>
           <button className="ghostButton" type="button" onClick={() => props.onChange([])} disabled={props.value.length === 0}>
             <Trash2 size={15} />
-            清空
+            {t("generate.clear")}
           </button>
         </div>
       </div>
 
       <div className="formGrid">
         <SelectInput
-          label="编辑意图"
+          label={t("generate.editIntent")}
           value={props.editIntent}
           options={editIntentOptions}
           onChange={(value) => props.onEditIntentChange(value as EditIntent)}
         />
         <SelectInput
-          label="参考强度"
+          label={t("generate.refStrength")}
           value={props.referenceStrength}
           options={referenceStrengthOptions}
           onChange={(value) => props.onReferenceStrengthChange(value as ReferenceStrength)}
@@ -1036,7 +1036,7 @@ function ReferenceImagePanel(props: {
       </div>
 
       {props.value.length === 0 ? (
-        <EmptyState text="还没有参考图" />
+        <EmptyState text={t("generate.noRefs")} />
       ) : (
         <div className="referenceGrid">
           {props.value.map((image) => (
@@ -1050,7 +1050,7 @@ function ReferenceImagePanel(props: {
                 <select value={image.role} onChange={(event) => updateRole(image.path, event.target.value as ReferenceImageRole)}>
                   {referenceRoles.map((role) => (
                     <option key={role.value} value={role.value}>
-                      {role.label}
+                      {t(role.label)}
                     </option>
                   ))}
                 </select>
@@ -1071,16 +1071,16 @@ function ReferenceImagePanel(props: {
       {props.editIntent === "inpaint" && (
         <div className="maskPanel">
           <div>
-            <strong>局部替换蒙版</strong>
-            <span>{props.maskImage ? props.maskImage.name ?? props.maskImage.path : "需要带透明通道的 PNG 图片"}</span>
+            <strong>{t("generate.mask")}</strong>
+            <span>{props.maskImage ? props.maskImage.name ?? props.maskImage.path : t("generate.maskHint")}</span>
           </div>
           <button className="ghostButton" type="button" onClick={importMask}>
             <Brush size={15} />
-            选择蒙版
+            {t("generate.selectMask")}
           </button>
           {props.maskImage && (
             <button className="miniClearButton" type="button" onClick={() => props.onMaskChange(null)}>
-              移除蒙版
+              {t("generate.removeMask")}
             </button>
           )}
         </div>
@@ -1420,13 +1420,14 @@ function TextArea(props: { label: string; value: string; onChange: (value: strin
 }
 
 function SelectInput(props: { label: string; value: string; options: SelectOption[]; onChange: (value: string) => void }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <label className="field">
       <span>{props.label}</span>
       <select value={props.value} onChange={(event) => props.onChange(event.target.value)}>
         {props.options.map((option) => (
           <option key={selectOptionValue(option)} value={selectOptionValue(option)}>
-            {selectOptionLabel(option)}
+            {t(selectOptionLabel(option))}
           </option>
         ))}
       </select>
