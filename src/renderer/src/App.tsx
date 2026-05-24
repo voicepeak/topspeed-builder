@@ -418,6 +418,7 @@ function HomePage(props: {
   setPage: (page: Page) => void;
   reloadRecent: () => Promise<void>;
 }): JSX.Element {
+  const { t } = useTranslation();
   const [input, setInput] = useState<CreateProjectInput>({
     name: "演示角色资源",
     parentDirectory: props.settings.defaultProjectRoot,
@@ -435,42 +436,42 @@ function HomePage(props: {
   return (
     <div className="pageGrid two">
       <section className="panel">
-        <PanelTitle icon={Plus} title="新建项目" subtitle="创建本地目录、项目配置文件和标准素材结构" />
+        <PanelTitle icon={Plus} title={t("home.new.title")} subtitle={t("home.new.subtitle")} />
         <div className="formGrid">
-          <TextInput label="项目名称" value={input.name} onChange={(name) => setInput({ ...input, name })} />
-          <TextInput label="项目父目录" value={input.parentDirectory ?? ""} onChange={(parentDirectory) => setInput({ ...input, parentDirectory })} />
+          <TextInput label={t("field.projectName")} value={input.name} onChange={(name) => setInput({ ...input, name })} />
+          <TextInput label={t("field.parentDir")} value={input.parentDirectory ?? ""} onChange={(parentDirectory) => setInput({ ...input, parentDirectory })} />
           <button
             className="ghostButton"
             onClick={async () => {
-              const directory = await props.runTask("选择目录", () => unwrap(window.aiSpriteStudio.chooseProjectRoot()));
+              const directory = await props.runTask(t("field.chooseDir"), () => unwrap(window.aiSpriteStudio.chooseProjectRoot()));
               if (directory) setInput({ ...input, parentDirectory: directory });
             }}
           >
             <FolderOpen size={16} />
-            选择目录
+            {t("field.chooseDir")}
           </button>
           <SelectInput
-            label="游戏类型"
+            label={t("field.gameType")}
             value={input.gameType}
             options={gameTypeOptions.slice(0, 6)}
             onChange={(gameType) => setInput({ ...input, gameType })}
           />
           <SelectInput
-            label="默认尺寸"
+            label={t("field.defaultSize")}
             value={input.defaultResolution}
             options={["16x16", "32x32", "64x64", "128x128"]}
             onChange={(defaultResolution) => setInput({ ...input, defaultResolution })}
           />
-          <TextInput label="美术风格" value={input.style} onChange={(style) => setInput({ ...input, style })} />
+          <TextInput label={t("field.artStyle")} value={input.style} onChange={(style) => setInput({ ...input, style })} />
           <TargetPicker value={input.exportTargets} onChange={(exportTargets) => setInput({ ...input, exportTargets })} />
         </div>
         <button
           className="primaryButton"
           onClick={async () => {
             const project = await props.runTask(
-              "创建项目",
+              t("busy.createProject"),
               () => unwrap(window.aiSpriteStudio.createProject(input)),
-              (created) => `已创建项目: ${created.path}`
+              (created) => `${t("message.created")}: ${created.path}`
             );
             if (project) {
               props.setProject(project);
@@ -480,16 +481,16 @@ function HomePage(props: {
           }}
         >
           <Plus size={18} />
-          创建并进入
+          {t("home.new.create")}
         </button>
       </section>
 
       <section className="panel">
-        <PanelTitle icon={FolderOpen} title="打开项目" subtitle="从项目配置文件或最近项目进入工作区" />
+        <PanelTitle icon={FolderOpen} title={t("home.open.title")} subtitle={t("home.open.subtitle")} />
         <button
           className="primaryButton secondary"
           onClick={async () => {
-            const project = await props.runTask("打开项目", () => unwrap(window.aiSpriteStudio.openProjectDialog()));
+            const project = await props.runTask(t("busy.openProject"), () => unwrap(window.aiSpriteStudio.openProjectDialog()));
             if (project) {
               props.setProject(project);
               props.setPage("generate");
@@ -498,10 +499,10 @@ function HomePage(props: {
           }}
         >
           <FolderOpen size={18} />
-          打开项目配置文件
+          {t("home.open.button")}
         </button>
         <div className="recentList">
-          {props.recentProjects.length === 0 && <EmptyState text="还没有最近项目" />}
+          {props.recentProjects.length === 0 && <EmptyState text={t("home.open.empty")} />}
           {props.recentProjects.map((item) => (
             <article key={item.path} className="recentItem">
               <div>
@@ -511,9 +512,9 @@ function HomePage(props: {
               </div>
               <div className="rowActions">
                 <button
-                  title="打开"
+                  title={t("home.open.open")}
                   onClick={async () => {
-                    const project = await props.runTask("打开最近项目", () => unwrap(window.aiSpriteStudio.openProjectPath(item.path)));
+                    const project = await props.runTask(t("busy.openRecent"), () => unwrap(window.aiSpriteStudio.openProjectPath(item.path)));
                     if (project) {
                       props.setProject(project);
                       props.setPage("generate");
@@ -523,9 +524,9 @@ function HomePage(props: {
                   <Play size={15} />
                 </button>
                 <button
-                  title="移除记录"
+                  title={t("home.open.remove")}
                   onClick={async () => {
-                    await props.runTask("移除最近项目", () => unwrap(window.aiSpriteStudio.removeRecentProject(item.path)));
+                    await props.runTask(t("busy.removeRecent"), () => unwrap(window.aiSpriteStudio.removeRecentProject(item.path)));
                     await props.reloadRecent();
                   }}
                 >
@@ -545,6 +546,7 @@ function ProjectPage(props: {
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
   onSaved: (project: Project) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<Project>(props.project);
   const [newTemplate, setNewTemplate] = useState({ name: "赛博朋克霓虹风", description: "赛博朋克霓虹二维游戏美术，轮廓干净" });
 
@@ -568,47 +570,47 @@ function ProjectPage(props: {
 
   return (
     <section className="panel wide">
-      <PanelTitle icon={Gauge} title="项目配置" subtitle="这些配置会写回项目配置文件，并参与后续提示词与导出" />
+      <PanelTitle icon={Gauge} title={t("project.title")} subtitle={t("project.subtitle")} />
       <div className="formGrid three">
-        <TextInput label="项目名称" value={draft.name} onChange={(name) => setDraft({ ...draft, name })} />
+        <TextInput label={t("field.projectName")} value={draft.name} onChange={(name) => setDraft({ ...draft, name })} />
         <SelectInput
-          label="游戏类型"
+          label={t("field.gameType")}
           value={draft.gameType}
           options={gameTypeOptions}
           onChange={(gameType) => setDraft({ ...draft, gameType })}
         />
         <SelectInput
-          label="默认尺寸"
+          label={t("field.defaultSize")}
           value={draft.defaultResolution}
           options={["16x16", "32x32", "64x64", "128x128"]}
           onChange={(defaultResolution) => setDraft({ ...draft, defaultResolution })}
         />
-        <TextInput label="美术风格" value={draft.style} onChange={(style) => setDraft({ ...draft, style })} />
+        <TextInput label={t("field.artStyle")} value={draft.style} onChange={(style) => setDraft({ ...draft, style })} />
         <SelectInput
-          label="默认背景"
+          label={t("field.defaultBg")}
           value={draft.defaultBackground}
           options={backgroundOptions}
           onChange={(defaultBackground) => setDraft({ ...draft, defaultBackground: defaultBackground as Project["defaultBackground"] })}
         />
-        <TextInput label="项目路径" value={draft.path} disabled onChange={() => undefined} />
+        <TextInput label={t("field.projectPath")} value={draft.path} disabled onChange={() => undefined} />
       </div>
-      <TextArea label="项目风格描述（将注入所有智能生成提示词）" value={draft.styleDescription} onChange={(styleDescription) => setDraft({ ...draft, styleDescription })} />
+      <TextArea label={t("project.styleDesc")} value={draft.styleDescription} onChange={(styleDescription) => setDraft({ ...draft, styleDescription })} />
       <TargetPicker value={draft.exportTargets} onChange={(exportTargets) => setDraft({ ...draft, exportTargets })} />
 
       <div className="panelTitle" style={{ border: "none", padding: "12px 0 0", marginTop: 4 }}>
         <div className="panelIcon"><Brush size={18} /></div>
-        <div><h2>风格模板</h2><p>点击模板卡片即可注入上方项目风格提示词</p></div>
+        <div><h2>{t("style.templateTitle")}</h2><p>{t("style.templateSubtitle")}</p></div>
       </div>
 
       <div className="templateGrid">
-        {draft.styleTemplates.length === 0 && <EmptyState text="还没有风格模板" />}
+        {draft.styleTemplates.length === 0 && <EmptyState text={t("style.empty")} />}
         {draft.styleTemplates.map((template) => (
           <article
             key={template.id}
             className="templateItem templateItemAction"
             role="button"
             tabIndex={0}
-            title="点击注入到项目风格提示词"
+            title={t("style.templateTitle")}
             onClick={() => applyTemplate(template)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -619,7 +621,7 @@ function ProjectPage(props: {
           >
             <button
               className="templateDelete"
-              title="删除模板"
+              title={t("home.open.remove")}
               onClick={(event) => {
                 event.stopPropagation();
                 setDraft({ ...draft, styleTemplates: draft.styleTemplates.filter((item) => item.id !== template.id) });
@@ -629,30 +631,30 @@ function ProjectPage(props: {
             </button>
             <strong>{template.name}</strong>
             <span>{template.description}</span>
-            <small>{template.lineWeight ?? "线条"} · {template.lighting ?? "光照"} · {template.cameraView ?? "视角"}</small>
-            <small className="templateHint">点击注入提示词</small>
+            <small>{template.lineWeight ?? "—"} · {template.lighting ?? "—"} · {template.cameraView ?? "—"}</small>
+            <small className="templateHint">{t("preview.locate")}</small>
           </article>
         ))}
       </div>
 
       <div className="formGrid">
-        <TextInput label="模板名称" value={newTemplate.name} onChange={(name) => setNewTemplate({ ...newTemplate, name })} />
-        <TextInput label="描述" value={newTemplate.description} onChange={(description) => setNewTemplate({ ...newTemplate, description })} />
+        <TextInput label={t("style.templateName")} value={newTemplate.name} onChange={(name) => setNewTemplate({ ...newTemplate, name })} />
+        <TextInput label={t("style.templateDesc")} value={newTemplate.description} onChange={(description) => setNewTemplate({ ...newTemplate, description })} />
         <button className="ghostButton" style={{ alignSelf: "end" }} onClick={addTemplate}>
           <Plus size={16} />
-          添加模板
+          {t("style.addTemplate")}
         </button>
       </div>
 
       <button
         className="primaryButton"
         onClick={async () => {
-          const saved = await props.runTask("保存项目配置", () => unwrap(window.aiSpriteStudio.saveProject(draft)));
+          const saved = await props.runTask(t("busy.saveProject"), () => unwrap(window.aiSpriteStudio.saveProject(draft)));
           if (saved) props.onSaved(saved);
         }}
       >
         <Save size={18} />
-        保存项目配置
+        {t("project.save")}
       </button>
     </section>
   );
@@ -666,6 +668,7 @@ function GeneratePage(props: {
   onQueuedReferenceConsumed: () => void;
   onGenerated: () => Promise<void>;
 }): JSX.Element {
+  const { t } = useTranslation();
   const defaultPresets = useMemo(() => presetsFor("icon", props.project.defaultResolution), []);
   const [generationMode, setGenerationMode] = useState<GenerationMode>("text-to-image");
   const [assetType, setAssetType] = useState<AssetType>("icon");
@@ -754,10 +757,10 @@ function GeneratePage(props: {
   return (
     <div className="pageGrid generation">
       <section className="panel">
-        <PanelTitle icon={Wand2} title="素材生成" subtitle={`当前接口：${providerLabel(props.settings.aiProvider)} · 模型：${props.settings.model}`} />
+        <PanelTitle icon={Wand2} title={t("generate.title")} subtitle={t("generate.subtitle", { provider: providerLabel(props.settings.aiProvider), model: props.settings.model })} />
         {props.settings.aiProvider === "local-draft" && (
           <div className="inlineWarning">
-            当前是本地草稿模式，不会调用外部智能生成接口。要调用中转服务，请到设置页切换服务商。
+            {t("generate.draftWarning")}
           </div>
         )}
         <div className="typeRail">
@@ -782,7 +785,7 @@ function GeneratePage(props: {
         </div>
 
         <div className="inlineNote">
-          项目风格会自动注入生成提示词；这里填写当前素材独有的造型、材质、姿态或构图细节。
+          {t("generate.templateHint")}
         </div>
         {generationMode === "image-to-image" && (
           <ReferenceImagePanel
@@ -799,11 +802,11 @@ function GeneratePage(props: {
           />
         )}
         <div className="formGrid">
-          <TextInput label="素材名称" value={name} onChange={setName} />
-          <TextInput label="尺寸" value={size} onChange={setSize} />
-          <NumberInput label="数量" value={count} min={1} max={64} onChange={setCount} />
+          <TextInput label={t("generate.name")} value={name} onChange={setName} />
+          <TextInput label={t("generate.size")} value={size} onChange={setSize} />
+          <NumberInput label={t("generate.count")} value={count} min={1} max={64} onChange={setCount} />
         </div>
-        <TextArea label="描述" value={description} onChange={setDescription} />
+        <TextArea label={t("generate.desc")} value={description} onChange={setDescription} />
         <div className="detailTemplateBlock">
           <div className="detailTemplateHeader">
             <div>
@@ -834,35 +837,35 @@ function GeneratePage(props: {
           </div>
         </div>
         <TextArea label="对象细节提示词（可选，可编辑）" value={detailPrompt} onChange={setDetailPrompt} />
-        <Toggle label="透明背景" value={transparentBackground} onChange={setTransparentBackground} />
+        <Toggle label={t("generate.transparent")} value={transparentBackground} onChange={setTransparentBackground} />
         <TargetPicker value={targets} onChange={setTargets} />
 
         {(assetType === "icon" || assetType === "item" || assetType === "ui") && (
           <div className="subPanel">
-            <TextArea label="批量名称列表" value={iconItemsText} onChange={setIconItemsText} />
-            <Toggle label="生成图集" value={makeAtlas} onChange={setMakeAtlas} />
+            <TextArea label={t("generate.batchList")} value={iconItemsText} onChange={setIconItemsText} />
+            <Toggle label={t("generate.makeAtlas")} value={makeAtlas} onChange={setMakeAtlas} />
           </div>
         )}
 
         {assetType === "character" && (
           <div className="subPanel">
             <SelectInput
-              label="角色视角"
+              label={t("generate.characterView")}
               value={characterView}
               options={characterViewOptions}
               onChange={setCharacterView}
             />
             <AnimationEditor value={animations} onChange={setAnimations} />
-            <Toggle label="合成精灵表" value={makeSpriteSheet} onChange={setMakeSpriteSheet} />
+            <Toggle label={t("generate.makeSheet")} value={makeSpriteSheet} onChange={setMakeSpriteSheet} />
           </div>
         )}
 
         {assetType === "tileset" && (
           <div className="subPanel">
-            <TextInput label="瓦片集主题" value={tileTheme} onChange={setTileTheme} />
-            <TextArea label="瓦片类型" value={tileTypesText} onChange={setTileTypesText} />
-            <Toggle label="边缘尽量可拼接" value={tileSeamless} onChange={setTileSeamless} />
-            <Toggle label="生成 Tiled 地图文件" value={makeTiled} onChange={setMakeTiled} />
+            <TextInput label={t("generate.tileTheme")} value={tileTheme} onChange={setTileTheme} />
+            <TextArea label={t("generate.tileTypes")} value={tileTypesText} onChange={setTileTypesText} />
+            <Toggle label={t("generate.tileSeamless")} value={tileSeamless} onChange={setTileSeamless} />
+            <Toggle label={t("generate.makeTiled")} value={makeTiled} onChange={setMakeTiled} />
           </div>
         )}
 
@@ -871,20 +874,20 @@ function GeneratePage(props: {
           disabled={generationMode === "image-to-image" && referenceImages.length === 0}
           onClick={async () => {
             const result = await props.runTask(
-              "生成素材",
+              t("busy.generateAssets"),
               () => unwrap(window.aiSpriteStudio.generateAssets(input)),
-              (generated) => `生成完成：${generated.files.length} 个文件，元数据：${generated.metadataPath ?? "无"}`
+              (generated) => t("message.generated", { count: generated.files.length, metadata: generated.metadataPath ?? "—" })
             );
             if (result) await props.onGenerated();
           }}
         >
           <Sparkles size={18} />
-          调用生成并处理
+          {t("generate.callAndProcess")}
         </button>
       </section>
 
       <section className="panel">
-        <PanelTitle icon={Archive} title="任务摘要" subtitle="提交后由桌面主进程执行" />
+        <PanelTitle icon={Archive} title={t("generate.execute")} subtitle={t("generate.executeSubtitle")} />
         <TaskSummary input={input} />
       </section>
     </div>
@@ -892,6 +895,7 @@ function GeneratePage(props: {
 }
 
 function TaskSummary(props: { input: GenerateAssetInput }): JSX.Element {
+  const { t } = useTranslation();
   const input = props.input;
   const lines = [
     ["生成方式", input.generationMode === "image-to-image" ? "参考图生成" : "文本生成"],
@@ -957,6 +961,7 @@ function ReferenceImagePanel(props: {
   onEditIntentChange: (value: EditIntent) => void;
   onReferenceStrengthChange: (value: ReferenceStrength) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   async function importReferences(): Promise<void> {
     const imported = await props.runTask(
       "导入参考图",
@@ -1082,11 +1087,12 @@ function PreviewPage(props: {
   refreshProject: () => Promise<Project | null>;
   onUseAsReference: (asset: Asset, filePath: string) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <section className="panel wide">
-      <PanelTitle icon={Image} title="素材预览" subtitle={`${props.project.assets.length} 个素材包`} />
+      <PanelTitle icon={Image} title={t("preview.title")} subtitle={t("preview.subtitle", { count: props.project.assets.length })} />
       <div className="assetGrid">
-        {props.project.assets.length === 0 && <EmptyState text="还没有生成素材" />}
+        {props.project.assets.length === 0 && <EmptyState text={t("preview.empty")} />}
         {props.project.assets.map((asset) => (
           <AssetCard
             key={asset.id}
@@ -1100,7 +1106,7 @@ function PreviewPage(props: {
       </div>
       <button className="ghostButton" onClick={() => props.refreshProject()}>
         <RefreshCw size={16} />
-        重新读取项目配置
+        {t("preview.refresh")}
       </button>
     </section>
   );
@@ -1110,21 +1116,22 @@ function ExportPage(props: {
   project: Project;
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
 }): JSX.Element {
+  const { t } = useTranslation();
   const [targets, setTargets] = useState<ExportTarget[]>(props.project.exportTargets);
   const [includeZip, setIncludeZip] = useState(true);
 
   return (
     <section className="panel wide">
-      <PanelTitle icon={Package} title="导出" subtitle="生成 Unity、Godot、Tiled 和通用资源目录，以及压缩包" />
+      <PanelTitle icon={Package} title={t("export.title")} subtitle={t("export.subtitle")} />
       <TargetPicker value={targets} onChange={setTargets} />
-      <Toggle label="生成完整压缩包" value={includeZip} onChange={setIncludeZip} />
+      <Toggle label={t("export.includeZip")} value={includeZip} onChange={setIncludeZip} />
       <button
         className="primaryButton"
         onClick={async () => {
           const result = await props.runTask(
-            "导出资源",
+            t("busy.exportAssets"),
             () => unwrap(window.aiSpriteStudio.exportProject({ projectPath: props.project.path, targets, includeZip })),
-            (exported) => `导出完成：${exported.files.length} 个结果，目录 ${exported.exportRoot}`
+            (exported) => t("export.done", { count: exported.files.length, dir: exported.exportRoot })
           );
           if (result) {
             await window.aiSpriteStudio.openPath(result.exportRoot);
@@ -1132,18 +1139,19 @@ function ExportPage(props: {
         }}
       >
         <Download size={18} />
-        导出资源
+        {t("export.button")}
       </button>
     </section>
   );
 }
 
 function HistoryPage(props: { project: Project; history: GenerationHistoryRecord[] }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <section className="panel wide">
-      <PanelTitle icon={History} title="历史记录" subtitle={`${props.history.length} 次生成`} />
+      <PanelTitle icon={History} title={t("history.title")} subtitle={t("history.subtitle", { count: props.history.length })} />
       <div className="historyList">
-        {props.history.length === 0 && <EmptyState text="暂无历史记录" />}
+        {props.history.length === 0 && <EmptyState text={t("history.empty")} />}
         {props.history.map((record) => (
           <article key={record.id} className="historyItem">
             <div>
@@ -1167,33 +1175,34 @@ function SettingsPage(props: {
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
   onSaved: (settings: AppSettings) => void;
 }): JSX.Element {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<AppSettings>(props.settings);
   useEffect(() => setDraft(props.settings), [props.settings]);
 
   return (
     <section className="panel wide">
-      <PanelTitle icon={Settings} title="设置" subtitle="接口密钥、默认路径和生成参数保存在本机应用数据目录" />
+      <PanelTitle icon={Settings} title={t("settings.title")} subtitle={t("settings.subtitle")} />
       <div className="formGrid three">
         <SelectInput
-          label="人工智能接口服务商"
+          label={t("settings.aiProvider")}
           value={draft.aiProvider}
           options={providerOptions}
           onChange={(aiProvider) => setDraft({ ...draft, aiProvider: aiProvider as AppSettings["aiProvider"] })}
         />
-        <TextInput label="默认模型" value={draft.model} onChange={(model) => setDraft({ ...draft, model })} />
+        <TextInput label={t("settings.model")} value={draft.model} onChange={(model) => setDraft({ ...draft, model })} />
         <SelectInput
-          label="生成质量"
+          label={t("settings.quality")}
           value={draft.generationQuality}
           options={qualityOptions}
           onChange={(generationQuality) => setDraft({ ...draft, generationQuality: generationQuality as AppSettings["generationQuality"] })}
         />
-        <TextInput label="接口基础地址" value={draft.apiBaseUrl} onChange={(apiBaseUrl) => setDraft({ ...draft, apiBaseUrl })} />
-        <TextInput label="接口密钥" value={draft.apiKey} type="password" onChange={(apiKey) => setDraft({ ...draft, apiKey })} />
-        <TextInput label="默认项目目录" value={draft.defaultProjectRoot} onChange={(defaultProjectRoot) => setDraft({ ...draft, defaultProjectRoot })} />
-        <TextInput label="默认导出目录" value={draft.defaultExportDirectory} onChange={(defaultExportDirectory) => setDraft({ ...draft, defaultExportDirectory })} />
-        <TextInput label="默认图像尺寸" value={draft.defaultImageSize} onChange={(defaultImageSize) => setDraft({ ...draft, defaultImageSize })} />
+        <TextInput label={t("settings.apiBaseUrl")} value={draft.apiBaseUrl} onChange={(apiBaseUrl) => setDraft({ ...draft, apiBaseUrl })} />
+        <TextInput label={t("settings.apiKey")} value={draft.apiKey} type="password" onChange={(apiKey) => setDraft({ ...draft, apiKey })} />
+        <TextInput label={t("settings.defaultProjectDir")} value={draft.defaultProjectRoot} onChange={(defaultProjectRoot) => setDraft({ ...draft, defaultProjectRoot })} />
+        <TextInput label={t("settings.defaultExportDir")} value={draft.defaultExportDirectory} onChange={(defaultExportDirectory) => setDraft({ ...draft, defaultExportDirectory })} />
+        <TextInput label={t("settings.defaultImageSize")} value={draft.defaultImageSize} onChange={(defaultImageSize) => setDraft({ ...draft, defaultImageSize })} />
         <NumberInput
-          label="默认生成数量"
+          label={t("settings.defaultGenCount")}
           value={draft.defaultGenerationCount}
           min={1}
           max={64}
@@ -1201,20 +1210,20 @@ function SettingsPage(props: {
         />
       </div>
       <div className="toggleRow">
-        <Toggle label="保存提示词历史" value={draft.savePromptHistory} onChange={(savePromptHistory) => setDraft({ ...draft, savePromptHistory })} />
-        <Toggle label="自动透明背景" value={draft.autoTransparent} onChange={(autoTransparent) => setDraft({ ...draft, autoTransparent })} />
-        <Toggle label="自动裁切" value={draft.autoTrim} onChange={(autoTrim) => setDraft({ ...draft, autoTrim })} />
-        <Toggle label="自动打包图集" value={draft.autoPackAtlas} onChange={(autoPackAtlas) => setDraft({ ...draft, autoPackAtlas })} />
+        <Toggle label={t("settings.savePromptHistory")} value={draft.savePromptHistory} onChange={(savePromptHistory) => setDraft({ ...draft, savePromptHistory })} />
+        <Toggle label={t("settings.autoTransparent")} value={draft.autoTransparent} onChange={(autoTransparent) => setDraft({ ...draft, autoTransparent })} />
+        <Toggle label={t("settings.autoTrim")} value={draft.autoTrim} onChange={(autoTrim) => setDraft({ ...draft, autoTrim })} />
+        <Toggle label={t("settings.autoPackAtlas")} value={draft.autoPackAtlas} onChange={(autoPackAtlas) => setDraft({ ...draft, autoPackAtlas })} />
       </div>
       <button
         className="primaryButton"
         onClick={async () => {
-          const saved = await props.runTask("保存设置", () => unwrap(window.aiSpriteStudio.saveSettings(draft)));
+          const saved = await props.runTask(t("settings.save"), () => unwrap(window.aiSpriteStudio.saveSettings(draft)));
           if (saved) props.onSaved(saved);
         }}
       >
         <Save size={18} />
-        保存设置
+        {t("settings.save")}
       </button>
     </section>
   );
@@ -1227,6 +1236,7 @@ function AssetCard(props: {
   onUseAsReference?: (asset: Asset, filePath: string) => void;
   onDelete?: () => Promise<void>;
 }): JSX.Element {
+  const { t } = useTranslation();
   const pngFile = props.asset.files.find((file) => file.endsWith(".png"));
   const [dataUrl, setDataUrl] = useState("");
 
@@ -1248,7 +1258,7 @@ function AssetCard(props: {
       <div className="assetBody">
         <strong>{props.asset.name}</strong>
         <span>{assetTypeLabels[props.asset.type]} · {props.asset.size.width}x{props.asset.size.height}</span>
-        <small>{props.asset.files.length} 个文件</small>
+        <small>{props.asset.files.length} {t("preview.files")}</small>
       </div>
       <div className="assetActions">
         {props.asset.generationMode === "image-to-image" && <Pill>参考图</Pill>}
@@ -1275,22 +1285,22 @@ function AssetCard(props: {
           onClick={() => {
             const file = props.asset.metadataPath ?? pngFile;
             if (file) {
-              void props.runTask("打开文件位置", () => unwrap(window.aiSpriteStudio.showItemInFolder(resolveFile(props.project.path, file))));
+              void props.runTask(t("busy.locateFile"), () => unwrap(window.aiSpriteStudio.showItemInFolder(resolveFile(props.project.path, file))));
             }
           }}
         >
           <FolderOpen size={15} />
-          定位
+          {t("preview.locate")}
         </button>
         <button
           className="ghostButton"
           style={{ borderColor: "rgba(255,45,149,0.3)", color: "var(--magenta)" }}
           onClick={async () => {
-            if (!window.confirm(`确认删除素材「${props.asset.name}」？\n关联的本地文件将被一并移除，此操作不可撤销。`)) return;
+            if (!window.confirm(t("preview.deleteConfirm", { name: props.asset.name }))) return;
             const result = await props.runTask(
-              "删除素材",
+              t("busy.deleteAsset"),
               () => unwrap(window.aiSpriteStudio.deleteAsset(props.project.path, props.asset.id)),
-              () => "已删除"
+              () => t("preview.deleteDone")
             );
             if (result && props.onDelete) await props.onDelete();
           }}
