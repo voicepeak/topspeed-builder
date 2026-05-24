@@ -13,7 +13,10 @@ export const PROJECT_DIRECTORIES = [
   "sheets",
   "atlas",
   "exports",
-  "history"
+  "history",
+  "references/images",
+  "references/masks",
+  "references/thumbnails"
 ];
 
 export function nowIso(): string {

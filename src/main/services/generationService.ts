@@ -6,7 +6,9 @@ import type {
   GenerateAssetInput,
   GeneratedAssetResult,
   GenerationHistoryRecord,
-  Project
+  Project,
+  ReferenceImageInput,
+  ReferenceImageRole
 } from "@shared/types";
 import { AIGenerationService } from "./aiService";
 import { AtlasPackingService } from "./atlasService";
@@ -16,7 +18,7 @@ import { ProjectService } from "./projectService";
 import { SettingsService } from "./settingsService";
 import { SpriteSheetService } from "./spriteSheetService";
 import { TileSetService } from "./tileSetService";
-import { nowIso, parseSize, sanitizeFileName, toRelative, writeJsonFile } from "./utils";
+import { nowIso, parseSize, resolveProjectPath, sanitizeFileName, toRelative, writeJsonFile } from "./utils";
 
 interface GeneratedFrame {
   absolutePath: string;
@@ -24,6 +26,10 @@ interface GeneratedFrame {
   name: string;
   animation: string;
   frameIndex: number;
+}
+
+interface ResolvedReferenceImage extends ReferenceImageInput {
+  filePath: string;
 }
 
 export class GenerationService {
@@ -40,6 +46,7 @@ export class GenerationService {
 
   async generate(input: GenerateAssetInput): Promise<GeneratedAssetResult> {
     const project = await this.projectService.openProjectPath(input.projectPath);
+    this.validateInput(input);
 
     if (input.assetType === "character") {
       return this.generateCharacter(project, input);
@@ -66,6 +73,9 @@ export class GenerationService {
     const files: string[] = [];
     const absoluteFiles: string[] = [];
     const prompts: string[] = [];
+    const referenceImages = this.resolveReferenceImages(project, input);
+    const maskImagePath = this.resolveMaskImagePath(project, input);
+    const referenceGuidance = this.buildReferenceGuidance(input);
 
     for (let index = 0; index < itemNames.length; index += 1) {
       const itemName = itemNames[index];
@@ -80,12 +90,14 @@ export class GenerationService {
         style: this.buildStylePrompt(project, input),
         size: input.size,
         transparentBackground: input.transparentBackground,
-        extra: "Single centered icon. Orthographic game inventory asset. Keep consistent palette with the batch."
+        extra: ["Single centered icon. Orthographic game inventory asset. Keep consistent palette with the batch.", referenceGuidance]
+          .filter(Boolean)
+          .join(" ")
       });
       prompts.push(prompt);
 
       try {
-        const image = await this.generateWithRetry(prompt, input.size, input.transparentBackground);
+        const image = await this.generateWithRetry(prompt, input.size, input.transparentBackground, input, referenceImages, maskImagePath);
         await fs.ensureDir(path.dirname(rawPath));
         await fs.writeFile(rawPath, image);
         logs.push(`保存原始图像: ${rawPath}`);
@@ -128,6 +140,7 @@ export class GenerationService {
       type: input.assetType,
       style: project.style,
       detailPrompt: this.resolveDetailPrompt(input),
+      ...this.buildGenerationMetadata(input),
       size,
       files,
       atlas: atlasPath,
@@ -172,6 +185,9 @@ export class GenerationService {
         ];
     const frames: GeneratedFrame[] = [];
     const prompts: string[] = [];
+    const referenceImages = this.resolveReferenceImages(project, input);
+    const maskImagePath = this.resolveMaskImagePath(project, input);
+    const referenceGuidance = this.buildReferenceGuidance(input);
 
     for (const animation of animations) {
       for (let frameIndex = 0; frameIndex < animation.frames; frameIndex += 1) {
@@ -188,13 +204,14 @@ export class GenerationService {
           extra: [
             `View: ${input.characterView}.`,
             `Animation action: ${animation.name}. Frame ${frameIndex + 1} of ${animation.frames}.`,
-            "Keep the same character identity, silhouette, outfit, proportions, and camera angle across all frames."
+            "Keep the same character identity, silhouette, outfit, proportions, and camera angle across all frames.",
+            referenceGuidance
           ].join(" ")
         });
         prompts.push(prompt);
 
         try {
-          const image = await this.generateWithRetry(prompt, input.size, input.transparentBackground);
+          const image = await this.generateWithRetry(prompt, input.size, input.transparentBackground, input, referenceImages, maskImagePath);
           await fs.ensureDir(path.dirname(rawPath));
           await fs.writeFile(rawPath, image);
           await this.imageService.saveProcessedImage(image, processedPath, {
@@ -249,6 +266,7 @@ export class GenerationService {
       type: "character",
       style: project.style,
       detailPrompt: this.resolveDetailPrompt(input),
+      ...this.buildGenerationMetadata(input),
       size,
       files,
       sheet: sheetPath,
@@ -295,6 +313,9 @@ export class GenerationService {
     const tiles: Array<{ filePath: string; type: string }> = [];
     const files: string[] = [];
     const prompts: string[] = [];
+    const referenceImages = this.resolveReferenceImages(project, input);
+    const maskImagePath = this.resolveMaskImagePath(project, input);
+    const referenceGuidance = this.buildReferenceGuidance(input);
 
     for (let index = 0; index < tileTypes.length; index += 1) {
       const tileType = tileTypes[index];
@@ -312,13 +333,14 @@ export class GenerationService {
         extra: [
           "Top-down tile. No perspective camera. Fill the full tile canvas.",
           input.tileSeamless ? "Edges should be visually repeatable and tileable." : "",
-          `Tile belongs to the same ${assetName} tileset.`
+          `Tile belongs to the same ${assetName} tileset.`,
+          referenceGuidance
         ].join(" ")
       });
       prompts.push(prompt);
 
       try {
-        const image = await this.generateWithRetry(prompt, input.size, false);
+        const image = await this.generateWithRetry(prompt, input.size, false, input, referenceImages, maskImagePath);
         await fs.ensureDir(path.dirname(rawPath));
         await fs.writeFile(rawPath, image);
         await this.imageService.saveProcessedImage(image, processedPath, {
@@ -348,6 +370,7 @@ export class GenerationService {
       theme: input.tileTheme,
       seamless: input.tileSeamless
     });
+    await this.appendGenerationMetadata(path.join(project.path, tileset.metadataPath), input);
     logs.push(`生成 TileSet: ${path.join(project.path, tileset.tilesetPath)}`);
     logs.push(`生成 Tiled TMX: ${path.join(project.path, tileset.tmxPath)}`);
 
@@ -386,6 +409,9 @@ export class GenerationService {
     const files: string[] = [];
     const absoluteFiles: string[] = [];
     const prompts: string[] = [];
+    const referenceImages = this.resolveReferenceImages(project, input);
+    const maskImagePath = this.resolveMaskImagePath(project, input);
+    const referenceGuidance = this.buildReferenceGuidance(input);
 
     for (let index = 0; index < Math.max(input.count, 1); index += 1) {
       const fileName = `${input.assetType}_${assetName}_${String(index).padStart(2, "0")}.png`;
@@ -398,12 +424,12 @@ export class GenerationService {
         style: this.buildStylePrompt(project, input),
         size: input.size,
         transparentBackground: input.transparentBackground,
-        extra: "Game-ready reusable 2D asset."
+        extra: ["Game-ready reusable 2D asset.", referenceGuidance].filter(Boolean).join(" ")
       });
       prompts.push(prompt);
 
       try {
-        const image = await this.generateWithRetry(prompt, input.size, input.transparentBackground);
+        const image = await this.generateWithRetry(prompt, input.size, input.transparentBackground, input, referenceImages, maskImagePath);
         await fs.ensureDir(path.dirname(rawPath));
         await fs.writeFile(rawPath, image);
         await this.imageService.saveProcessedImage(image, processedPath, {
@@ -441,6 +467,7 @@ export class GenerationService {
       type: input.assetType,
       style: project.style,
       detailPrompt: this.resolveDetailPrompt(input),
+      ...this.buildGenerationMetadata(input),
       size,
       files,
       atlas: atlasPath,
@@ -469,14 +496,25 @@ export class GenerationService {
     };
   }
 
-  private async generateWithRetry(prompt: string, size: string, transparentBackground: boolean): Promise<Buffer> {
+  private async generateWithRetry(
+    prompt: string,
+    size: string,
+    transparentBackground: boolean,
+    input: GenerateAssetInput,
+    referenceImages: ResolvedReferenceImage[],
+    maskImagePath?: string
+  ): Promise<Buffer> {
     const settings = await this.settingsService.getSettings();
     if (settings.aiProvider === "local-draft") {
       return this.aiService.generateImage({
         prompt,
         size,
         transparentBackground,
-        settings
+        settings,
+        referenceImages,
+        maskImagePath,
+        editIntent: input.editIntent,
+        referenceStrength: input.referenceStrength
       });
     }
 
@@ -488,7 +526,11 @@ export class GenerationService {
           prompt,
           size,
           transparentBackground,
-          settings
+          settings,
+          referenceImages,
+          maskImagePath,
+          editIntent: input.editIntent,
+          referenceStrength: input.referenceStrength
         });
       } catch (error) {
         lastError = error;
@@ -560,6 +602,9 @@ export class GenerationService {
       metadataPath: args.metadataPath,
       atlasPath: args.atlasPath,
       sheetPath: args.sheetPath,
+      generationMode: input.generationMode ?? "text-to-image",
+      referenceImages: input.generationMode === "image-to-image" ? input.referenceImages : undefined,
+      maskImagePath: input.generationMode === "image-to-image" ? input.maskImagePath : undefined,
       prompt: args.prompt,
       exportTargets: input.exportTargets,
       createdAt: timestamp,
@@ -593,6 +638,109 @@ export class GenerationService {
 
     await this.historyService.append(project.path, historyRecord);
     logs.push(`保存历史记录: ${path.join(project.path, "history", `${asset.id}.json`)}`);
+  }
+
+  private validateInput(input: GenerateAssetInput): void {
+    const mode = input.generationMode ?? "text-to-image";
+    if (mode !== "image-to-image") {
+      return;
+    }
+
+    if (!input.referenceImages?.length) {
+      throw new Error("图生图模式需要至少一张参考图。");
+    }
+
+    if (input.referenceImages.length > 4) {
+      throw new Error("图生图 v1 最多支持 4 张参考图。");
+    }
+
+    if (input.editIntent === "inpaint" && !input.maskImagePath) {
+      throw new Error("局部替换模式需要提供 mask PNG。");
+    }
+  }
+
+  private resolveReferenceImages(project: Project, input: GenerateAssetInput): ResolvedReferenceImage[] {
+    if ((input.generationMode ?? "text-to-image") !== "image-to-image") {
+      return [];
+    }
+
+    return input.referenceImages.map((reference) => ({
+      ...reference,
+      filePath: resolveProjectPath(project.path, reference.path)
+    }));
+  }
+
+  private resolveMaskImagePath(project: Project, input: GenerateAssetInput): string | undefined {
+    if ((input.generationMode ?? "text-to-image") !== "image-to-image" || !input.maskImagePath) {
+      return undefined;
+    }
+
+    return resolveProjectPath(project.path, input.maskImagePath);
+  }
+
+  private buildReferenceGuidance(input: GenerateAssetInput): string {
+    if ((input.generationMode ?? "text-to-image") !== "image-to-image") {
+      return "";
+    }
+
+    const roleLabels: Record<ReferenceImageRole, string> = {
+      subject: "preserve the main subject identity and silhouette",
+      style: "match the visual style, line language, and rendering treatment",
+      composition: "follow the composition and camera arrangement",
+      palette: "reuse the color palette and material mood"
+    };
+    const intentLabels: Record<GenerateAssetInput["editIntent"], string> = {
+      "preserve-subject": "Preserve the referenced subject while redrawing it as a game-ready asset.",
+      "preserve-style": "Create a new asset that follows the referenced style.",
+      "preserve-composition": "Create a new asset that follows the referenced composition.",
+      "same-series": "Create a same-series variant that belongs with the reference assets.",
+      inpaint: "Edit only the masked region and keep the rest visually stable."
+    };
+    const strengthLabels: Record<GenerateAssetInput["referenceStrength"], string> = {
+      low: "Use references loosely.",
+      medium: "Balance prompt instructions with reference preservation.",
+      high: "Use high input fidelity and preserve reference details where possible."
+    };
+
+    const roles = input.referenceImages
+      .map((reference, index) => `Reference ${index + 1} (${reference.role}): ${roleLabels[reference.role]}.`)
+      .join(" ");
+
+    return [
+      "Use the provided input image references.",
+      intentLabels[input.editIntent],
+      strengthLabels[input.referenceStrength],
+      roles
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  private buildGenerationMetadata(input: GenerateAssetInput): Record<string, unknown> {
+    const generationMode = input.generationMode ?? "text-to-image";
+    if (generationMode !== "image-to-image") {
+      return { generationMode };
+    }
+
+    return {
+      generationMode,
+      editIntent: input.editIntent,
+      referenceStrength: input.referenceStrength,
+      referenceImages: input.referenceImages,
+      maskImagePath: input.maskImagePath
+    };
+  }
+
+  private async appendGenerationMetadata(metadataPath: string, input: GenerateAssetInput): Promise<void> {
+    try {
+      const metadata = await fs.readJson(metadataPath);
+      await writeJsonFile(metadataPath, {
+        ...metadata,
+        ...this.buildGenerationMetadata(input)
+      });
+    } catch {
+      await writeJsonFile(metadataPath, this.buildGenerationMetadata(input));
+    }
   }
 
   private buildStylePrompt(project: Project, input: GenerateAssetInput): string {

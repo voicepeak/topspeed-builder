@@ -28,19 +28,38 @@ import type {
   Asset,
   AssetType,
   CreateProjectInput,
+  EditIntent,
   ExportTarget,
   GenerateAssetInput,
+  GenerationMode,
   GenerationHistoryRecord,
+  ImportedReferenceImage,
   IpcResponse,
   Project,
+  ReferenceImageInput,
+  ReferenceImageRole,
+  ReferenceStrength,
   RecentProject,
   StyleTemplate
 } from "@shared/types";
 
 type Page = "home" | "project" | "generate" | "preview" | "export" | "history" | "settings";
 type DetailTemplate = { id: string; name: string; prompt: string; meta: string };
+type ReferenceDraft = ReferenceImageInput & Partial<Pick<ImportedReferenceImage, "width" | "height" | "bytes" | "hash" | "thumbnailPath" | "dataUrl">>;
 
 const exportTargets: ExportTarget[] = ["unity", "godot", "tiled", "phaser", "cocos", "common"];
+const generationModes: Array<{ value: GenerationMode; label: string }> = [
+  { value: "text-to-image", label: "文本生成" },
+  { value: "image-to-image", label: "参考图生成" }
+];
+const referenceRoles: Array<{ value: ReferenceImageRole; label: string }> = [
+  { value: "subject", label: "主体参考" },
+  { value: "style", label: "风格参考" },
+  { value: "composition", label: "构图参考" },
+  { value: "palette", label: "色板参考" }
+];
+const editIntentOptions: EditIntent[] = ["preserve-subject", "preserve-style", "preserve-composition", "same-series", "inpaint"];
+const referenceStrengthOptions: ReferenceStrength[] = ["low", "medium", "high"];
 const assetTypes: Array<{ value: AssetType; label: string }> = [
   { value: "icon", label: "图标" },
   { value: "item", label: "道具" },
@@ -105,7 +124,7 @@ const defaultSettings: AppSettings = {
   aiProvider: "openai",
   apiKey: "",
   apiBaseUrl: "https://api.openai.com/v1/images/generations",
-  model: "gpt-image-1",
+  model: "gpt-image-1.5",
   defaultProjectRoot: "",
   defaultExportDirectory: "",
   defaultImageSize: "64x64",
@@ -123,6 +142,7 @@ function App(): JSX.Element {
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [history, setHistory] = useState<GenerationHistoryRecord[]>([]);
+  const [queuedReference, setQueuedReference] = useState<ReferenceDraft | null>(null);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
 
@@ -289,6 +309,8 @@ function App(): JSX.Element {
             project={project}
             settings={settings}
             runTask={runTask}
+            queuedReference={queuedReference}
+            onQueuedReferenceConsumed={() => setQueuedReference(null)}
             onGenerated={async () => {
               await refreshProject(project.path);
               await refreshHistory(project.path);
@@ -296,7 +318,22 @@ function App(): JSX.Element {
             }}
           />
         )}
-        {page === "preview" && project && <PreviewPage project={project} runTask={runTask} refreshProject={refreshProject} />}
+        {page === "preview" && project && (
+          <PreviewPage
+            project={project}
+            runTask={runTask}
+            refreshProject={refreshProject}
+            onUseAsReference={(asset, filePath) => {
+              setQueuedReference({
+                path: filePath,
+                role: "subject",
+                sourceAssetId: asset.id,
+                name: asset.name
+              });
+              setPage("generate");
+            }}
+          />
+        )}
         {page === "export" && project && <ExportPage project={project} runTask={runTask} />}
         {page === "history" && project && <HistoryPage project={project} history={history} />}
         {page === "settings" && (
@@ -565,14 +602,21 @@ function GeneratePage(props: {
   project: Project;
   settings: AppSettings;
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
+  queuedReference: ReferenceDraft | null;
+  onQueuedReferenceConsumed: () => void;
   onGenerated: () => Promise<void>;
 }): JSX.Element {
   const defaultPresets = useMemo(() => presetsFor("icon", props.project.defaultResolution), []);
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("text-to-image");
   const [assetType, setAssetType] = useState<AssetType>("icon");
   const detailTemplates = useMemo(() => objectDetailTemplates[assetType], [assetType]);
   const [name, setName] = useState(defaultPresets.name);
   const [description, setDescription] = useState(defaultPresets.description);
   const [detailPrompt, setDetailPrompt] = useState("");
+  const [referenceImages, setReferenceImages] = useState<ReferenceDraft[]>([]);
+  const [editIntent, setEditIntent] = useState<EditIntent>("preserve-subject");
+  const [referenceStrength, setReferenceStrength] = useState<ReferenceStrength>("medium");
+  const [maskImage, setMaskImage] = useState<ReferenceDraft | null>(null);
   const [size, setSize] = useState(defaultPresets.size);
   const [count, setCount] = useState(props.settings.defaultGenerationCount);
   const [transparentBackground, setTransparentBackground] = useState(defaultPresets.transparentBackground);
@@ -587,6 +631,30 @@ function GeneratePage(props: {
   const [tileSeamless, setTileSeamless] = useState(true);
   const [makeTiled, setMakeTiled] = useState(true);
 
+  useEffect(() => {
+    const queued = props.queuedReference;
+    if (!queued) return;
+
+    setGenerationMode("image-to-image");
+    setEditIntent("preserve-subject");
+    setReferenceImages((current) => {
+      if (current.some((item) => item.path === queued.path)) {
+        return current;
+      }
+      return [...current, queued].slice(0, 4);
+    });
+
+    if (window.aiSpriteStudio) {
+      window.aiSpriteStudio.readImageDataUrl(props.project.path, queued.path).then((result) => {
+        if (!result.ok || !result.data) return;
+        setReferenceImages((current) =>
+          current.map((item) => (item.path === queued.path ? { ...item, dataUrl: result.data } : item))
+        );
+      });
+    }
+    props.onQueuedReferenceConsumed();
+  }, [props.queuedReference, props.project.path]);
+
   function handleAssetTypeChange(newType: AssetType): void {
     setAssetType(newType);
     const { name: n, description: d, size: s, transparentBackground: t } = presetsFor(newType, props.project.defaultResolution);
@@ -599,10 +667,15 @@ function GeneratePage(props: {
 
   const input: GenerateAssetInput = {
     projectPath: props.project.path,
+    generationMode,
     assetType,
     name,
     description,
     detailPrompt,
+    referenceImages: generationMode === "image-to-image" ? referenceImages.map(toReferenceInput) : [],
+    editIntent,
+    referenceStrength,
+    maskImagePath: generationMode === "image-to-image" && editIntent === "inpaint" ? maskImage?.path : undefined,
     size,
     count,
     transparentBackground,
@@ -635,9 +708,36 @@ function GeneratePage(props: {
           ))}
         </div>
 
+        <div className="modeRail">
+          {generationModes.map((mode) => (
+            <button
+              key={mode.value}
+              type="button"
+              className={generationMode === mode.value ? "selected" : ""}
+              onClick={() => setGenerationMode(mode.value)}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+
         <div className="inlineNote">
           项目风格会自动注入生成 prompt；这里填写当前素材独有的造型、材质、姿态或构图细节。
         </div>
+        {generationMode === "image-to-image" && (
+          <ReferenceImagePanel
+            project={props.project}
+            value={referenceImages}
+            maskImage={maskImage}
+            editIntent={editIntent}
+            referenceStrength={referenceStrength}
+            runTask={props.runTask}
+            onChange={setReferenceImages}
+            onMaskChange={setMaskImage}
+            onEditIntentChange={setEditIntent}
+            onReferenceStrengthChange={setReferenceStrength}
+          />
+        )}
         <div className="formGrid">
           <TextInput label="素材名称" value={name} onChange={setName} />
           <TextInput label="尺寸" value={size} onChange={setSize} />
@@ -708,6 +808,7 @@ function GeneratePage(props: {
 
         <button
           className="primaryButton"
+          disabled={generationMode === "image-to-image" && referenceImages.length === 0}
           onClick={async () => {
             const result = await props.runTask(
               "生成素材",
@@ -730,10 +831,142 @@ function GeneratePage(props: {
   );
 }
 
+function ReferenceImagePanel(props: {
+  project: Project;
+  value: ReferenceDraft[];
+  maskImage: ReferenceDraft | null;
+  editIntent: EditIntent;
+  referenceStrength: ReferenceStrength;
+  runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
+  onChange: (value: ReferenceDraft[]) => void;
+  onMaskChange: (value: ReferenceDraft | null) => void;
+  onEditIntentChange: (value: EditIntent) => void;
+  onReferenceStrengthChange: (value: ReferenceStrength) => void;
+}): JSX.Element {
+  async function importReferences(): Promise<void> {
+    const imported = await props.runTask(
+      "导入参考图",
+      () => unwrap(window.aiSpriteStudio.chooseReferenceImages(props.project.path)),
+      (result) => `已导入 ${result.length} 张参考图`
+    );
+    if (!imported) return;
+
+    const merged = [...props.value];
+    for (const image of imported) {
+      if (merged.length >= 4) break;
+      if (!merged.some((item) => item.path === image.path)) {
+        merged.push(image);
+      }
+    }
+    props.onChange(merged);
+  }
+
+  async function importMask(): Promise<void> {
+    const imported = await props.runTask(
+      "导入 Mask",
+      () => unwrap(window.aiSpriteStudio.chooseMaskImage(props.project.path)),
+      () => "Mask 已导入"
+    );
+    if (imported) props.onMaskChange(imported);
+  }
+
+  function updateRole(pathValue: string, role: ReferenceImageRole): void {
+    props.onChange(props.value.map((image) => (image.path === pathValue ? { ...image, role } : image)));
+  }
+
+  return (
+    <div className="referencePanel">
+      <div className="referenceHeader">
+        <div>
+          <strong>参考图</strong>
+          <span>{props.value.length}/4 · 导入后会复制到当前项目 references 目录</span>
+        </div>
+        <div className="referenceActions">
+          <button className="ghostButton" type="button" onClick={importReferences} disabled={props.value.length >= 4}>
+            <Plus size={15} />
+            导入参考图
+          </button>
+          <button className="ghostButton" type="button" onClick={() => props.onChange([])} disabled={props.value.length === 0}>
+            <Trash2 size={15} />
+            清空
+          </button>
+        </div>
+      </div>
+
+      <div className="formGrid">
+        <SelectInput
+          label="编辑意图"
+          value={props.editIntent}
+          options={editIntentOptions}
+          onChange={(value) => props.onEditIntentChange(value as EditIntent)}
+        />
+        <SelectInput
+          label="参考强度"
+          value={props.referenceStrength}
+          options={referenceStrengthOptions}
+          onChange={(value) => props.onReferenceStrengthChange(value as ReferenceStrength)}
+        />
+      </div>
+
+      {props.value.length === 0 ? (
+        <EmptyState text="还没有参考图" />
+      ) : (
+        <div className="referenceGrid">
+          {props.value.map((image) => (
+            <article key={image.path} className="referenceCard">
+              <div className="referenceThumb">
+                {image.dataUrl ? <img src={image.dataUrl} alt={image.name ?? image.path} /> : <Image size={34} />}
+              </div>
+              <div className="referenceMeta">
+                <strong>{image.name ?? image.path.split(/[\\/]/).pop()}</strong>
+                <small>{image.width && image.height ? `${image.width}x${image.height}` : "project asset"}</small>
+                <select value={image.role} onChange={(event) => updateRole(image.path, event.target.value as ReferenceImageRole)}>
+                  {referenceRoles.map((role) => (
+                    <option key={role.value} value={role.value}>
+                      {role.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                className="referenceRemove"
+                type="button"
+                title="移除参考图"
+                onClick={() => props.onChange(props.value.filter((item) => item.path !== image.path))}
+              >
+                <Trash2 size={13} />
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {props.editIntent === "inpaint" && (
+        <div className="maskPanel">
+          <div>
+            <strong>局部替换 Mask</strong>
+            <span>{props.maskImage ? props.maskImage.name ?? props.maskImage.path : "需要带 alpha 通道的 PNG"}</span>
+          </div>
+          <button className="ghostButton" type="button" onClick={importMask}>
+            <Brush size={15} />
+            选择 Mask
+          </button>
+          {props.maskImage && (
+            <button className="miniClearButton" type="button" onClick={() => props.onMaskChange(null)}>
+              移除 Mask
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PreviewPage(props: {
   project: Project;
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
   refreshProject: () => Promise<Project | null>;
+  onUseAsReference: (asset: Asset, filePath: string) => void;
 }): JSX.Element {
   return (
     <section className="panel wide">
@@ -746,6 +979,7 @@ function PreviewPage(props: {
             project={props.project}
             asset={asset}
             runTask={props.runTask}
+            onUseAsReference={props.onUseAsReference}
             onDelete={async () => { await props.refreshProject(); }}
           />
         ))}
@@ -800,7 +1034,10 @@ function HistoryPage(props: { project: Project; history: GenerationHistoryRecord
           <article key={record.id} className="historyItem">
             <div>
               <strong>{record.parameters.name || record.assetType}</strong>
-              <span>{record.assetType} · {new Date(record.createdAt).toLocaleString()}</span>
+              <span>
+                {record.assetType} · {record.parameters.generationMode === "image-to-image" ? "参考图生成" : "文本生成"} ·{" "}
+                {new Date(record.createdAt).toLocaleString()}
+              </span>
               <small>{record.outputFiles.join(" · ")}</small>
             </div>
             <code>{record.prompt.slice(0, 240)}</code>
@@ -873,6 +1110,7 @@ function AssetCard(props: {
   project: Project;
   asset: Asset;
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
+  onUseAsReference?: (asset: Asset, filePath: string) => void;
   onDelete?: () => Promise<void>;
 }): JSX.Element {
   const pngFile = props.asset.files.find((file) => file.endsWith(".png"));
@@ -899,6 +1137,7 @@ function AssetCard(props: {
         <small>{props.asset.files.length} files</small>
       </div>
       <div className="assetActions">
+        {props.asset.generationMode === "image-to-image" && <Pill>Ref</Pill>}
         {props.asset.sheetPath && <Pill>Sheet</Pill>}
         {props.asset.atlasPath && <Pill>Atlas</Pill>}
         {props.asset.metadataPath && <Pill>JSON</Pill>}
@@ -911,6 +1150,12 @@ function AssetCard(props: {
         </div>
       )}
       <div className="assetActions" style={{ marginTop: "auto" }}>
+        {pngFile && props.onUseAsReference && (
+          <button className="ghostButton" onClick={() => props.onUseAsReference?.(props.asset, pngFile)}>
+            <Image size={15} />
+            参考
+          </button>
+        )}
         <button
           className="ghostButton"
           onClick={() => {
@@ -1132,6 +1377,15 @@ function splitLines(value: string): string[] {
     .split(/[\n,，]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function toReferenceInput(image: ReferenceDraft): ReferenceImageInput {
+  return {
+    path: image.path,
+    role: image.role,
+    sourceAssetId: image.sourceAssetId,
+    name: image.name
+  };
 }
 
 function resolveFile(projectPath: string, filePath: string): string {

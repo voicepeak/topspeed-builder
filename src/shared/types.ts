@@ -9,6 +9,10 @@ export type AssetType =
   | "effect";
 
 export type ExportTarget = "unity" | "godot" | "tiled" | "phaser" | "cocos" | "common";
+export type GenerationMode = "text-to-image" | "image-to-image";
+export type ReferenceImageRole = "subject" | "style" | "composition" | "palette";
+export type EditIntent = "preserve-subject" | "preserve-style" | "preserve-composition" | "same-series" | "inpaint";
+export type ReferenceStrength = "low" | "medium" | "high";
 
 export interface Size {
   width: number;
@@ -22,6 +26,23 @@ export interface AnimationConfig {
   loop: boolean;
 }
 
+export interface ReferenceImageInput {
+  path: string;
+  role: ReferenceImageRole;
+  sourceAssetId?: string;
+  name?: string;
+}
+
+export interface ImportedReferenceImage extends ReferenceImageInput {
+  width: number;
+  height: number;
+  mime: string;
+  bytes: number;
+  hash: string;
+  thumbnailPath?: string;
+  dataUrl: string;
+}
+
 export interface Asset {
   id: string;
   name: string;
@@ -33,6 +54,9 @@ export interface Asset {
   metadataPath?: string;
   atlasPath?: string;
   sheetPath?: string;
+  generationMode?: GenerationMode;
+  referenceImages?: ReferenceImageInput[];
+  maskImagePath?: string;
   prompt: string;
   exportTargets: ExportTarget[];
   createdAt: string;
@@ -104,10 +128,15 @@ export interface CreateProjectInput {
 
 export interface GenerateAssetInput {
   projectPath: string;
+  generationMode: GenerationMode;
   assetType: AssetType;
   name: string;
   description: string;
   detailPrompt: string;
+  referenceImages: ReferenceImageInput[];
+  editIntent: EditIntent;
+  referenceStrength: ReferenceStrength;
+  maskImagePath?: string;
   size: string;
   count: number;
   transparentBackground: boolean;

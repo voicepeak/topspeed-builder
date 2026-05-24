@@ -16,6 +16,7 @@ import { GenerationService } from "./services/generationService";
 import { HistoryService } from "./services/historyService";
 import { ImageProcessingService } from "./services/imageService";
 import { ProjectService } from "./services/projectService";
+import { ReferenceService } from "./services/referenceService";
 import { SettingsService } from "./services/settingsService";
 import { SpriteSheetService } from "./services/spriteSheetService";
 import { TileSetService } from "./services/tileSetService";
@@ -23,6 +24,7 @@ import { resolveProjectPath } from "./services/utils";
 
 const settingsService = new SettingsService();
 const projectService = new ProjectService(settingsService);
+const referenceService = new ReferenceService();
 const aiService = new AIGenerationService();
 const imageService = new ImageProcessingService();
 const spriteSheetService = new SpriteSheetService();
@@ -77,6 +79,8 @@ function registerIpc(): void {
   handle("settings:save", (settings: AppSettings) => settingsService.saveSettings(settings));
 
   handle("project:deleteAsset", (projectPath: string, assetId: string) => projectService.deleteAsset(projectPath, assetId));
+  handle("reference:chooseImages", (projectPath: string) => referenceService.chooseReferenceImages(projectPath));
+  handle("reference:chooseMask", (projectPath: string) => referenceService.chooseMask(projectPath));
 
   handle("generate:assets", (input: GenerateAssetInput) => generationService.generate(input));
   handle("history:get", (projectPath: string) => historyService.getHistory(projectPath));

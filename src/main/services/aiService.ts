@@ -1,22 +1,39 @@
+import path from "node:path";
+import fs from "fs-extra";
 import sharp from "sharp";
-import type { AppSettings } from "@shared/types";
+import type { AppSettings, EditIntent, ReferenceImageRole, ReferenceStrength } from "@shared/types";
 import { hashString, parseSize } from "./utils";
+
+interface ReferenceImagePayload {
+  filePath: string;
+  role: ReferenceImageRole;
+  name?: string;
+  sourceAssetId?: string;
+}
 
 interface GenerateImageArgs {
   prompt: string;
   size: string;
   transparentBackground: boolean;
   settings: AppSettings;
+  referenceImages?: ReferenceImagePayload[];
+  maskImagePath?: string;
+  editIntent?: EditIntent;
+  referenceStrength?: ReferenceStrength;
 }
 
 export class AIGenerationService {
   async generateImage(args: GenerateImageArgs): Promise<Buffer> {
     if (args.settings.aiProvider === "local-draft") {
-      return this.generateLocalDraft(args.prompt, args.size);
+      return this.generateLocalDraft(args.prompt, args.size, args.referenceImages);
     }
 
     if (args.settings.aiProvider === "custom") {
       return this.generateWithCustomProvider(args);
+    }
+
+    if ((args.referenceImages?.length ?? 0) > 0 || args.maskImagePath) {
+      return this.generateWithOpenAIEdit(args);
     }
 
     return this.generateWithOpenAI(args);
@@ -53,13 +70,15 @@ export class AIGenerationService {
       throw new Error("OpenAI API Key 为空。请在设置页配置 API Key，或切换到本地草稿模式。");
     }
 
-    const endpoint = this.resolveOpenAIImageEndpoint(args.settings.apiBaseUrl);
+    const endpoint = this.resolveOpenAIImageEndpoint(args.settings.apiBaseUrl, "generations");
     this.assertHttpEndpoint(endpoint, "OpenAI API Base URL");
     const requestPayload: Record<string, unknown> = {
-      model: args.settings.model || "gpt-image-1",
+      model: args.settings.model || "gpt-image-1.5",
       prompt: args.prompt,
       n: 1,
-      size: this.mapProviderSize(args.size)
+      size: this.mapProviderSize(args.size),
+      quality: args.settings.generationQuality,
+      background: args.transparentBackground ? "transparent" : "auto"
     };
     const response = await fetch(endpoint, {
       method: "POST",
@@ -77,27 +96,58 @@ export class AIGenerationService {
       );
     }
 
-    const payload = this.parseJsonResponse(responseText, {
+    return this.extractImageFromPayload(
+      this.parseJsonResponse(responseText, {
       provider: "OpenAI",
       endpoint,
       status: response.status,
       contentType: response.headers.get("content-type") ?? ""
+      }),
+      "OpenAI"
+    );
+  }
+
+  private async generateWithOpenAIEdit(args: GenerateImageArgs): Promise<Buffer> {
+    if (!args.settings.apiKey.trim()) {
+      throw new Error("OpenAI API Key 为空。请在设置页配置 API Key，或切换到本地草稿模式。");
+    }
+
+    const references = args.referenceImages ?? [];
+    if (references.length === 0) {
+      throw new Error("图生图需要至少一张参考图。");
+    }
+
+    const endpoint = this.resolveOpenAIImageEndpoint(args.settings.apiBaseUrl, "edits");
+    this.assertHttpEndpoint(endpoint, "OpenAI API Base URL");
+
+    const form = new FormData();
+    form.append("model", args.settings.model || "gpt-image-1.5");
+    form.append("prompt", args.prompt);
+    form.append("n", "1");
+    form.append("size", this.mapProviderSize(args.size));
+    form.append("quality", args.settings.generationQuality);
+    form.append("background", args.transparentBackground ? "transparent" : "auto");
+    if (args.referenceStrength === "high") {
+      form.append("input_fidelity", "high");
+    }
+
+    for (const reference of references) {
+      form.append("image", await this.fileToBlob(reference.filePath), path.basename(reference.filePath));
+    }
+
+    if (args.maskImagePath) {
+      form.append("mask", await this.fileToBlob(args.maskImagePath), path.basename(args.maskImagePath));
+    }
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${args.settings.apiKey}`
+      },
+      body: form
     });
-    const image = payload.data?.[0];
 
-    if (image?.b64_json) {
-      return Buffer.from(image.b64_json, "base64");
-    }
-
-    if (image?.url) {
-      const imageResponse = await fetch(image.url);
-      if (!imageResponse.ok) {
-        throw new Error(`下载 OpenAI 图片失败: HTTP ${imageResponse.status} ${imageResponse.statusText}`);
-      }
-      return Buffer.from(await imageResponse.arrayBuffer());
-    }
-
-    throw new Error("OpenAI 响应中没有 b64_json 或 url 图片数据。");
+    return this.readImageResponse(response, "OpenAI", endpoint);
   }
 
   private async generateWithCustomProvider(args: GenerateImageArgs): Promise<Buffer> {
@@ -107,6 +157,45 @@ export class AIGenerationService {
 
     const endpoint = args.settings.apiBaseUrl.trim();
     this.assertHttpEndpoint(endpoint, "自定义 API Base URL");
+
+    if ((args.referenceImages?.length ?? 0) > 0 || args.maskImagePath) {
+      const form = new FormData();
+      form.append("prompt", args.prompt);
+      form.append("size", args.size);
+      form.append("model", args.settings.model);
+      form.append("transparentBackground", String(args.transparentBackground));
+      form.append("editIntent", args.editIntent ?? "");
+      form.append("referenceStrength", args.referenceStrength ?? "");
+      form.append(
+        "referenceImages",
+        JSON.stringify(
+          (args.referenceImages ?? []).map((reference) => ({
+            role: reference.role,
+            name: reference.name,
+            sourceAssetId: reference.sourceAssetId
+          }))
+        )
+      );
+
+      for (const reference of args.referenceImages ?? []) {
+        form.append("image", await this.fileToBlob(reference.filePath), path.basename(reference.filePath));
+      }
+
+      if (args.maskImagePath) {
+        form.append("mask", await this.fileToBlob(args.maskImagePath), path.basename(args.maskImagePath));
+      }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          ...(args.settings.apiKey ? { Authorization: `Bearer ${args.settings.apiKey}` } : {})
+        },
+        body: form
+      });
+
+      return this.readImageResponse(response, "自定义 API", endpoint);
+    }
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -121,59 +210,27 @@ export class AIGenerationService {
       })
     });
 
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType.includes("image/")) {
-      return Buffer.from(await response.arrayBuffer());
-    }
-
-    const responseText = await response.text();
-    if (!response.ok) {
-      throw new Error(
-        `自定义图片 API 失败: HTTP ${response.status} ${response.statusText}. ${this.summarizeBody(responseText)}`
-      );
-    }
-
-    const payload = this.parseJsonResponse(responseText, {
-      provider: "自定义 API",
-      endpoint,
-      status: response.status,
-      contentType
-    });
-    const b64 = payload.b64_json ?? payload.image ?? payload.data?.[0]?.b64_json;
-    const url = payload.url ?? payload.data?.[0]?.url;
-
-    if (b64) {
-      return Buffer.from(String(b64).replace(/^data:image\/\w+;base64,/, ""), "base64");
-    }
-
-    if (url) {
-      const imageResponse = await fetch(url);
-      if (!imageResponse.ok) {
-        throw new Error(`下载自定义 API 图片失败: HTTP ${imageResponse.status} ${imageResponse.statusText}`);
-      }
-      return Buffer.from(await imageResponse.arrayBuffer());
-    }
-
-    throw new Error("自定义 API 响应不含 image / b64_json / url。");
+    return this.readImageResponse(response, "自定义 API", endpoint);
   }
 
-  private resolveOpenAIImageEndpoint(input: string): string {
+  private resolveOpenAIImageEndpoint(input: string, mode: "generations" | "edits"): string {
     const fallback = "https://api.openai.com/v1/images/generations";
     const raw = input.trim() || fallback;
     const url = new URL(raw);
     const path = url.pathname.replace(/\/+$/g, "");
 
     if (path === "" || path === "/") {
-      url.pathname = "/v1/images/generations";
+      url.pathname = `/v1/images/${mode}`;
       return url.toString();
     }
 
     if (path === "/v1") {
-      url.pathname = `${path}/images/generations`;
+      url.pathname = `${path}/images/${mode}`;
       return url.toString();
     }
 
-    if (path.endsWith("/images/generations")) {
+    if (path.endsWith("/images/generations") || path.endsWith("/images/edits")) {
+      url.pathname = path.replace(/\/images\/(?:generations|edits)$/g, `/images/${mode}`);
       return url.toString();
     }
 
@@ -209,6 +266,53 @@ export class AIGenerationService {
     }
   }
 
+  private async readImageResponse(response: Response, provider: string, endpoint: string): Promise<Buffer> {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("image/")) {
+      if (!response.ok) {
+        throw new Error(`${provider} 图片 API 失败: HTTP ${response.status} ${response.statusText}`);
+      }
+      return Buffer.from(await response.arrayBuffer());
+    }
+
+    const responseText = await response.text();
+    if (!response.ok) {
+      throw new Error(
+        `${provider} 图片 API 失败: HTTP ${response.status} ${response.statusText}. ${this.summarizeBody(responseText)}`
+      );
+    }
+
+    return this.extractImageFromPayload(
+      this.parseJsonResponse(responseText, {
+        provider,
+        endpoint,
+        status: response.status,
+        contentType
+      }),
+      provider
+    );
+  }
+
+  private async extractImageFromPayload(payload: any, provider: string): Promise<Buffer> {
+    const image = payload.data?.[0] ?? payload;
+    const b64 = image?.b64_json ?? image?.image ?? payload.b64_json ?? payload.image;
+    const url = image?.url ?? payload.url;
+
+    if (b64) {
+      return Buffer.from(String(b64).replace(/^data:image\/\w+;base64,/, ""), "base64");
+    }
+
+    if (url) {
+      const imageResponse = await fetch(url);
+      if (!imageResponse.ok) {
+        throw new Error(`下载${provider}图片失败: HTTP ${imageResponse.status} ${imageResponse.statusText}`);
+      }
+      return Buffer.from(await imageResponse.arrayBuffer());
+    }
+
+    throw new Error(`${provider} 响应中没有 b64_json、image 或 url 图片数据。`);
+  }
+
   private summarizeBody(body: string): string {
     const summary = body.replace(/\s+/g, " ").trim().slice(0, 220);
     return summary ? `响应摘要: ${summary}` : "响应正文为空。";
@@ -225,7 +329,14 @@ export class AIGenerationService {
     return "1024x1024";
   }
 
-  private async generateLocalDraft(prompt: string, size: string): Promise<Buffer> {
+  private async fileToBlob(filePath: string): Promise<Blob> {
+    const buffer = await fs.readFile(filePath);
+    const extension = path.extname(filePath).toLowerCase();
+    const type = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg" : extension === ".webp" ? "image/webp" : "image/png";
+    return new Blob([buffer], { type });
+  }
+
+  private async generateLocalDraft(prompt: string, size: string, referenceImages?: ReferenceImagePayload[]): Promise<Buffer> {
     const { width, height } = parseSize(size);
     const canvasWidth = Math.max(width, 64);
     const canvasHeight = Math.max(height, 64);
@@ -263,7 +374,54 @@ export class AIGenerationService {
       </svg>
     `;
 
-    return sharp(Buffer.from(svg)).png().toBuffer();
+    const draft = await sharp(Buffer.from(svg)).png().toBuffer();
+    const firstReference = referenceImages?.[0];
+    if (!firstReference) {
+      return draft;
+    }
+
+    try {
+      const reference = await sharp(firstReference.filePath)
+        .ensureAlpha()
+        .resize({
+          width: canvasWidth,
+          height: canvasHeight,
+          fit: "contain",
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        })
+        .modulate({ brightness: 0.92, saturation: 0.75 })
+        .png()
+        .toBuffer();
+
+      const badge = await sharp(
+        Buffer.from(`
+          <svg width="${canvasWidth}" height="${canvasHeight}" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="30" height="12" rx="3" fill="rgba(0, 212, 255, .68)"/>
+            <text x="17" y="10.5" text-anchor="middle" font-size="7" font-family="monospace" fill="#071013">ref</text>
+          </svg>
+        `)
+      )
+        .png()
+        .toBuffer();
+
+      return sharp({
+        create: {
+          width: canvasWidth,
+          height: canvasHeight,
+          channels: 4,
+          background: { r: 0, g: 0, b: 0, alpha: 0 }
+        }
+      })
+        .composite([
+          { input: reference, blend: "over" },
+          { input: draft, blend: "screen" },
+          { input: badge, blend: "over" }
+        ])
+        .png()
+        .toBuffer();
+    } catch {
+      return draft;
+    }
   }
 
   private escapeSvg(value: string): string {

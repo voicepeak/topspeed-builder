@@ -32,7 +32,7 @@ export class SettingsService {
       aiProvider: "openai",
       apiKey: "",
       apiBaseUrl: "https://api.openai.com/v1/images/generations",
-      model: "gpt-image-1",
+      model: "gpt-image-1.5",
       defaultProjectRoot: projectRoot,
       defaultExportDirectory: "",
       defaultImageSize: "64x64",

@@ -39,6 +39,7 @@
 |------|------|
 | **项目** | 创建本地目录、保存 `project.json`、管理最近项目 |
 | **生成** | 调用 OpenAI-compatible 图片 API、自定义 API 或本地草稿模式 |
+| **图生图** | 上传参考图、复用项目素材、按主体 / 风格 / 构图 / 色板生成变体，支持 mask 局部替换 |
 | **后处理** | Sharp 处理透明背景、裁切、统一尺寸、PNG 输出 |
 | **批量** | 图标 / 道具 / UI 素材批量名称列表生成 |
 | **动画** | 角色动作帧合成 Sprite Sheet |
@@ -66,13 +67,13 @@ npm run build
 | `AI API Provider` | `openai` \| `custom` \| `local-draft` |
 | `API Key` | 图片生成服务的 Key |
 | `API Base URL` | OpenAI-compatible 接口，如 `https://example.com/v1/images/generations` |
-| `Model` | 如 `gpt-image-2` |
+| `Model` | 如 `gpt-image-1.5` |
 
 OpenAI-compatible 模式发送最小兼容请求体：
 
 ```json
 {
-  "model": "gpt-image-2",
+  "model": "gpt-image-1.5",
   "prompt": "prompt text",
   "n": 1,
   "size": "1024x1024"
@@ -80,6 +81,8 @@ OpenAI-compatible 模式发送最小兼容请求体：
 ```
 
 透明背景、裁切和目标尺寸统一由本地 Sharp 后处理完成。
+
+图生图模式会在本地项目中保存参考图副本，并通过 OpenAI Images Edits 兼容接口发送 multipart 请求。OpenAI 官方接口支持多张参考图、可选 mask，以及 `gpt-image-1.5` / `gpt-image-1` / `gpt-image-1-mini` 等 GPT Image 模型。
 
 ## 本地草稿模式
 
@@ -99,6 +102,10 @@ sheets/
 atlas/
 exports/
 history/
+references/
+  images/
+  masks/
+  thumbnails/
 ```
 
 ## 导出目标
@@ -145,6 +152,7 @@ Built for indie developers, art prototypers, and toolchain validators. Create lo
 |--------|-------------|
 | **Project** | Create local directories, save `project.json`, manage recent projects |
 | **Generation** | OpenAI-compatible API, custom API, or local draft mode |
+| **Image-to-Image** | Upload reference images, reuse project assets, generate subject/style/composition/palette variants, and optionally use masks |
 | **Post-Processing** | Sharp-based transparent background, crop, uniform size, PNG |
 | **Batch** | Mass-generate icons / items / UI sprites from a name list |
 | **Animation** | Character pose frames → Sprite Sheet compositing |
@@ -172,13 +180,13 @@ Configure in the Settings page:
 | `AI API Provider` | `openai` \| `custom` \| `local-draft` |
 | `API Key` | Your image generation service key |
 | `API Base URL` | OpenAI-compatible endpoint |
-| `Model` | e.g. `gpt-image-2` |
+| `Model` | e.g. `gpt-image-1.5` |
 
 Minimal request body:
 
 ```json
 {
-  "model": "gpt-image-2",
+  "model": "gpt-image-1.5",
   "prompt": "prompt text",
   "n": 1,
   "size": "1024x1024"
@@ -186,6 +194,8 @@ Minimal request body:
 ```
 
 Transparency, cropping, and sizing are handled locally by Sharp.
+
+Image-to-image mode stores local reference copies in the project and sends multipart requests to OpenAI-compatible Images Edits endpoints. The OpenAI API supports multiple reference images, optional masks, and GPT Image models such as `gpt-image-1.5`, `gpt-image-1`, and `gpt-image-1-mini`.
 
 ## Local Draft Mode
 
@@ -205,6 +215,10 @@ sheets/
 atlas/
 exports/
 history/
+references/
+  images/
+  masks/
+  thumbnails/
 ```
 
 ## Export Targets

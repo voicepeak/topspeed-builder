@@ -609,6 +609,7 @@ button { color: inherit; }
 .primaryButton,
 .rowActions button,
 .typeRail button,
+.modeRail button,
 .targetPicker button,
 .toggle,
 .animationRow button {
@@ -633,6 +634,7 @@ button { color: inherit; }
 .ghostButton:hover,
 .rowActions button:hover,
 .typeRail button:hover,
+.modeRail button:hover,
 .targetPicker button:hover,
 .animationRow button:hover {
   border-color: var(--cyan);
@@ -642,6 +644,7 @@ button { color: inherit; }
 }
 
 .typeRail button,
+.modeRail button,
 .targetPicker button {
   min-height: 34px;
   padding: 0 14px;
@@ -650,6 +653,7 @@ button { color: inherit; }
 }
 
 .typeRail button.selected,
+.modeRail button.selected,
 .targetPicker button.selected {
   border-color: var(--cyan);
   background: linear-gradient(180deg, var(--cyan-dim), transparent);
@@ -765,6 +769,150 @@ button { color: inherit; }
   border: 2px solid var(--steel);
   border-radius: 8px;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.02), transparent), var(--anvil);
+}
+
+.typeRail,
+.modeRail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modeRail {
+  padding: 6px;
+  border: 1px solid rgba(44, 58, 71, 0.86);
+  border-radius: 8px;
+  background: rgba(7, 10, 13, 0.42);
+}
+
+.referencePanel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 2px solid rgba(0, 212, 255, 0.2);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(0, 212, 255, 0.09), rgba(255, 45, 149, 0.05) 56%, transparent),
+    var(--anvil);
+}
+
+.referenceHeader,
+.maskPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.referenceHeader strong,
+.maskPanel strong {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.referenceHeader span,
+.maskPanel span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.referenceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.referenceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.referenceCard {
+  position: relative;
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 36px 10px 10px;
+  border: 1px solid rgba(44, 58, 71, 0.95);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(18, 28, 35, 0.9), rgba(9, 13, 17, 0.95));
+}
+
+.referenceThumb {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--steel);
+  border-radius: 6px;
+  background: var(--pit);
+  color: var(--dim);
+}
+
+.referenceThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.referenceMeta {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.referenceMeta strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.referenceMeta small {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.referenceMeta select {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--steel);
+  border-radius: 6px;
+  background: var(--pit);
+  color: var(--muted);
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 11px;
+}
+
+.referenceRemove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid rgba(255, 45, 149, 0.25);
+  border-radius: 6px;
+  background: rgba(255, 45, 149, 0.08);
+  color: var(--magenta);
+  cursor: pointer;
+}
+
+.maskPanel {
+  padding: 12px;
+  border: 1px solid rgba(255, 140, 0, 0.25);
+  border-radius: 8px;
+  background: var(--amber-dim);
 }
 
 .targetPicker {
@@ -965,6 +1113,15 @@ button { color: inherit; }
   padding: 14px 44px 14px 14px;
 }
 
+.ghostButton:disabled,
+.primaryButton:disabled,
+.modeRail button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .templateItemAction {
   cursor: pointer;
 }
@@ -1146,4 +1303,5 @@ button { color: inherit; }
 @media (max-width: 760px) {
   .detailTemplateGrid { grid-template-columns: 1fr; }
   .detailTemplateHeader { align-items: flex-start; flex-direction: column; }
+  .referenceHeader, .maskPanel { align-items: flex-start; flex-direction: column; }
 }
