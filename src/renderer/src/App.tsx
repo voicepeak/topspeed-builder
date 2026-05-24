@@ -46,8 +46,47 @@ import type {
 type Page = "home" | "project" | "generate" | "preview" | "export" | "history" | "settings";
 type DetailTemplate = { id: string; name: string; prompt: string; meta: string };
 type ReferenceDraft = ReferenceImageInput & Partial<Pick<ImportedReferenceImage, "width" | "height" | "bytes" | "hash" | "thumbnailPath" | "dataUrl">>;
+type SelectOption = string | { value: string; label: string };
 
 const exportTargets: ExportTarget[] = ["unity", "godot", "tiled", "phaser", "cocos", "common"];
+const exportTargetLabels: Record<ExportTarget, string> = {
+  unity: "Unity",
+  godot: "Godot",
+  tiled: "Tiled",
+  phaser: "Phaser",
+  cocos: "Cocos",
+  common: "通用"
+};
+const gameTypeOptions: SelectOption[] = [
+  { value: "RPG", label: "角色扮演" },
+  "平台跳跃",
+  "俯视角",
+  "横版动作",
+  "卡牌",
+  "塔防",
+  "其他"
+];
+const backgroundOptions: SelectOption[] = [
+  { value: "transparent", label: "透明" },
+  { value: "solid", label: "纯色" },
+  { value: "custom", label: "自定义" }
+];
+const characterViewOptions: SelectOption[] = [
+  { value: "side-view", label: "侧视角" },
+  { value: "top-down", label: "俯视角" },
+  { value: "four-direction", label: "四方向" },
+  { value: "eight-direction", label: "八方向" }
+];
+const providerOptions: SelectOption[] = [
+  { value: "openai", label: "OpenAI" },
+  { value: "custom", label: "自定义接口" },
+  { value: "local-draft", label: "本地草稿" }
+];
+const qualityOptions: SelectOption[] = [
+  { value: "low", label: "低" },
+  { value: "medium", label: "中" },
+  { value: "high", label: "高" }
+];
 const generationModes: Array<{ value: GenerationMode; label: string }> = [
   { value: "text-to-image", label: "文本生成" },
   { value: "image-to-image", label: "参考图生成" }
@@ -58,66 +97,79 @@ const referenceRoles: Array<{ value: ReferenceImageRole; label: string }> = [
   { value: "composition", label: "构图参考" },
   { value: "palette", label: "色板参考" }
 ];
-const editIntentOptions: EditIntent[] = ["preserve-subject", "preserve-style", "preserve-composition", "same-series", "inpaint"];
-const referenceStrengthOptions: ReferenceStrength[] = ["low", "medium", "high"];
+const editIntentOptions: Array<{ value: EditIntent; label: string }> = [
+  { value: "preserve-subject", label: "保持主体" },
+  { value: "preserve-style", label: "保持风格" },
+  { value: "preserve-composition", label: "保持构图" },
+  { value: "same-series", label: "同系列变体" },
+  { value: "inpaint", label: "局部替换" }
+];
+const editIntentLabels = Object.fromEntries(editIntentOptions.map((option) => [option.value, option.label])) as Record<EditIntent, string>;
+const referenceStrengthOptions: Array<{ value: ReferenceStrength; label: string }> = [
+  { value: "low", label: "低" },
+  { value: "medium", label: "中" },
+  { value: "high", label: "高" }
+];
+const referenceStrengthLabels = Object.fromEntries(referenceStrengthOptions.map((option) => [option.value, option.label])) as Record<ReferenceStrength, string>;
 const assetTypes: Array<{ value: AssetType; label: string }> = [
   { value: "icon", label: "图标" },
   { value: "item", label: "道具" },
   { value: "character", label: "角色" },
   { value: "enemy", label: "怪物" },
-  { value: "tileset", label: "TileSet" },
-  { value: "ui", label: "UI" },
+  { value: "tileset", label: "瓦片集" },
+  { value: "ui", label: "界面" },
   { value: "background", label: "背景" },
   { value: "effect", label: "特效" }
 ];
+const assetTypeLabels = Object.fromEntries(assetTypes.map((option) => [option.value, option.label])) as Record<AssetType, string>;
 
 const objectDetailTemplates: Record<AssetType, DetailTemplate[]> = {
   icon: [
-    { id: "icon-readable", name: "高可读轮廓", prompt: "single centered object, bold readable silhouette, front-facing, no text, no extra props", meta: "图标 · 背包识别" },
-    { id: "icon-material", name: "材质重点", prompt: "clear material cue, polished edges, small highlight accents, readable at tiny size", meta: "图标 · 材质" },
-    { id: "icon-rare", name: "稀有道具感", prompt: "premium collectible feel, compact shape, subtle glow, clean outline, no background clutter", meta: "图标 · 品质" }
+    { id: "icon-readable", name: "高可读轮廓", prompt: "单个居中物体，轮廓粗清晰，正面视角，无文字，无多余道具", meta: "图标 · 背包识别" },
+    { id: "icon-material", name: "材质重点", prompt: "材质特征明确，边缘精致，小面积高光，在小尺寸下仍可辨识", meta: "图标 · 材质" },
+    { id: "icon-rare", name: "稀有道具感", prompt: "高级收藏品质，形状紧凑，轻微发光，轮廓干净，背景无杂物", meta: "图标 · 品质" }
   ],
   item: [
-    { id: "item-held", name: "可持握道具", prompt: "handheld prop proportions, visible grip area, practical game silhouette, isolated object", meta: "道具 · 使用感" },
-    { id: "item-worn", name: "旧化边缘", prompt: "worn edges, scratches, small dents, readable material wear without noisy detail", meta: "道具 · 质感" },
-    { id: "item-quest", name: "任务物品", prompt: "distinctive quest item shape, recognizable focal detail, slightly ceremonial construction", meta: "道具 · 叙事" }
+    { id: "item-held", name: "可持握道具", prompt: "手持道具比例，有清晰握持区域，游戏内轮廓实用，单独物体", meta: "道具 · 使用感" },
+    { id: "item-worn", name: "旧化边缘", prompt: "边缘磨损，有划痕和小凹痕，材质旧化可读但不过度杂乱", meta: "道具 · 质感" },
+    { id: "item-quest", name: "任务物品", prompt: "任务物品形状独特，有可识别的焦点细节，略带仪式感结构", meta: "道具 · 叙事" }
   ],
   character: [
-    { id: "character-consistent", name: "身份一致", prompt: "same character identity across frames, consistent outfit, proportions, palette, and camera angle", meta: "角色 · 序列帧" },
-    { id: "character-action", name: "动作清晰", prompt: "clear action pose, readable limb separation, balanced weight, no motion blur", meta: "角色 · 动作" },
-    { id: "character-rpg", name: "RPG 站姿", prompt: "compact RPG sprite stance, heroic posture, weapon visible, clean idle silhouette", meta: "角色 · 战斗" }
+    { id: "character-consistent", name: "身份一致", prompt: "每一帧保持同一角色身份，服装、比例、色板和视角一致", meta: "角色 · 序列帧" },
+    { id: "character-action", name: "动作清晰", prompt: "动作姿态明确，四肢分离可读，重心平衡，无运动模糊", meta: "角色 · 动作" },
+    { id: "character-rpg", name: "角色站姿", prompt: "紧凑的角色精灵站姿，姿态英勇，武器可见，待机轮廓干净", meta: "角色 · 战斗" }
   ],
   enemy: [
-    { id: "enemy-threat", name: "威胁轮廓", prompt: "hostile creature silhouette, exaggerated readable shape, clear weak point, no cute expression", meta: "怪物 · 识别" },
-    { id: "enemy-slime", name: "软体怪", prompt: "gelatinous body, simple face, squashable rounded shape, translucent edge highlights", meta: "怪物 · 软体" },
-    { id: "enemy-boss", name: "精英单位", prompt: "larger elite variant details, armor-like plates, stronger silhouette, readable attack cues", meta: "怪物 · 精英" }
+    { id: "enemy-threat", name: "威胁轮廓", prompt: "敌对生物轮廓，形状夸张且可读，有明确弱点，不要可爱表情", meta: "怪物 · 识别" },
+    { id: "enemy-slime", name: "软体怪", prompt: "凝胶状身体，简单面部，可挤压的圆润形体，边缘半透明高光", meta: "怪物 · 软体" },
+    { id: "enemy-boss", name: "精英单位", prompt: "更大的精英变体细节，甲壳或护甲板，更强轮廓，攻击提示可读", meta: "怪物 · 精英" }
   ],
   tileset: [
-    { id: "tile-seam", name: "拼接边缘", prompt: "tileable edges, repeatable pattern, no unique landmark crossing the border, full tile coverage", meta: "TileSet · 拼接" },
-    { id: "tile-wear", name: "地表磨损", prompt: "subtle cracks, chipped corners, small surface variation, consistent top-down lighting", meta: "TileSet · 地表" },
-    { id: "tile-modular", name: "模块套件", prompt: "modular dungeon construction, matching floor and wall language, consistent scale cues", meta: "TileSet · 模块" }
+    { id: "tile-seam", name: "拼接边缘", prompt: "边缘可平铺，图案可重复，边界不穿过独特地标，铺满整个瓦片", meta: "瓦片集 · 拼接" },
+    { id: "tile-wear", name: "地表磨损", prompt: "细微裂缝、缺角和小幅表面变化，俯视光照一致", meta: "瓦片集 · 地表" },
+    { id: "tile-modular", name: "模块套件", prompt: "模块化地牢结构，地面与墙体视觉语言匹配，尺度线索一致", meta: "瓦片集 · 模块" }
   ],
   ui: [
-    { id: "ui-panel", name: "面板控件", prompt: "clean UI panel part, nine-slice friendly edges, readable bevel, no text labels", meta: "UI · 面板" },
-    { id: "ui-button", name: "按钮状态", prompt: "game button element, clear pressed-state geometry, centered highlight, no embedded text", meta: "UI · 控件" },
-    { id: "ui-hud", name: "HUD 元件", prompt: "compact HUD element, strong icon slot, high contrast rim, transparent background", meta: "UI · HUD" }
+    { id: "ui-panel", name: "面板控件", prompt: "干净的界面面板部件，边缘适合九宫格切片，斜面可读，无文字标签", meta: "界面 · 面板" },
+    { id: "ui-button", name: "按钮状态", prompt: "游戏按钮元素，按下状态几何结构清晰，中心高光，无内嵌文字", meta: "界面 · 控件" },
+    { id: "ui-hud", name: "状态栏元件", prompt: "紧凑的状态栏元素，有强图标槽，高对比边框，透明背景", meta: "界面 · 状态栏" }
   ],
   background: [
-    { id: "bg-parallax", name: "视差层", prompt: "side-scrolling parallax layer, separated foreground and background depth, no characters", meta: "背景 · 横版" },
-    { id: "bg-loop", name: "循环背景", prompt: "loopable horizontal background, soft repeating landmarks, consistent horizon line", meta: "背景 · 循环" },
-    { id: "bg-atmosphere", name: "气氛光", prompt: "environment mood lighting, readable depth layers, unobtrusive gameplay backdrop", meta: "背景 · 气氛" }
+    { id: "bg-parallax", name: "视差层", prompt: "横版卷轴视差层，前景与背景层次分明，无角色", meta: "背景 · 横版" },
+    { id: "bg-loop", name: "循环背景", prompt: "可水平循环的背景，地标柔和重复，地平线一致", meta: "背景 · 循环" },
+    { id: "bg-atmosphere", name: "气氛光", prompt: "环境气氛光，深度层次可读，不干扰玩法的背景", meta: "背景 · 气氛" }
   ],
   effect: [
-    { id: "effect-impact", name: "命中特效", prompt: "short impact burst, clear center point, radial particles, transparent background", meta: "特效 · 打击" },
-    { id: "effect-loop", name: "循环粒子", prompt: "loop-friendly particle shape, consistent energy flow, no hard start or end cue", meta: "特效 · 循环" },
-    { id: "effect-magic", name: "魔法光效", prompt: "arcane glow particles, readable spell core, soft outer bloom, clean alpha edges", meta: "特效 · 魔法" }
+    { id: "effect-impact", name: "命中特效", prompt: "短促命中爆发，中心点清晰，径向粒子，透明背景", meta: "特效 · 打击" },
+    { id: "effect-loop", name: "循环粒子", prompt: "适合循环的粒子形状，能量流向一致，无明显开头或结尾", meta: "特效 · 循环" },
+    { id: "effect-magic", name: "魔法光效", prompt: "奥术发光粒子，法术核心可读，外层柔和辉光，透明边缘干净", meta: "特效 · 魔法" }
   ]
 };
 
 const defaultAnimations: AnimationConfig[] = [
-  { name: "idle", frames: 4, fps: 6, loop: true },
-  { name: "walk", frames: 4, fps: 8, loop: true },
-  { name: "attack", frames: 4, fps: 10, loop: false }
+  { name: "待机", frames: 4, fps: 6, loop: true },
+  { name: "行走", frames: 4, fps: 8, loop: true },
+  { name: "攻击", frames: 4, fps: 10, loop: false }
 ];
 
 const defaultSettings: AppSettings = {
@@ -180,7 +232,7 @@ function App(): JSX.Element {
   async function refreshInitialState(): Promise<void> {
     try {
       if (!window.aiSpriteStudio) {
-        setMessage("浏览器预览模式：Electron IPC 未连接；桌面应用中会启用本地文件、AI 生成和导出服务。");
+        setMessage("浏览器预览模式：桌面通信未连接；桌面应用中会启用本地文件、智能生成和导出服务。");
         return;
       }
 
@@ -233,7 +285,7 @@ function App(): JSX.Element {
           </div>
           <div>
             <strong>AI Sprite Studio</strong>
-            <span>2D asset pipeline</span>
+            <span>二维素材流水线</span>
           </div>
         </div>
 
@@ -359,10 +411,10 @@ function HomePage(props: {
   reloadRecent: () => Promise<void>;
 }): JSX.Element {
   const [input, setInput] = useState<CreateProjectInput>({
-    name: "Demo RPG Game",
+    name: "演示角色资源",
     parentDirectory: props.settings.defaultProjectRoot,
     gameType: "RPG",
-    style: "16-bit pixel art",
+    style: "十六位像素风",
     defaultResolution: "32x32",
     defaultBackground: "transparent",
     exportTargets: ["unity", "godot", "tiled", "common"]
@@ -375,7 +427,7 @@ function HomePage(props: {
   return (
     <div className="pageGrid two">
       <section className="panel">
-        <PanelTitle icon={Plus} title="新建项目" subtitle="创建本地目录、project.json 和标准素材结构" />
+        <PanelTitle icon={Plus} title="新建项目" subtitle="创建本地目录、项目配置文件和标准素材结构" />
         <div className="formGrid">
           <TextInput label="项目名称" value={input.name} onChange={(name) => setInput({ ...input, name })} />
           <TextInput label="项目父目录" value={input.parentDirectory ?? ""} onChange={(parentDirectory) => setInput({ ...input, parentDirectory })} />
@@ -392,7 +444,7 @@ function HomePage(props: {
           <SelectInput
             label="游戏类型"
             value={input.gameType}
-            options={["RPG", "平台跳跃", "俯视角", "横版动作", "卡牌", "塔防"]}
+            options={gameTypeOptions.slice(0, 6)}
             onChange={(gameType) => setInput({ ...input, gameType })}
           />
           <SelectInput
@@ -425,7 +477,7 @@ function HomePage(props: {
       </section>
 
       <section className="panel">
-        <PanelTitle icon={FolderOpen} title="打开项目" subtitle="从 project.json 或最近项目进入工作区" />
+        <PanelTitle icon={FolderOpen} title="打开项目" subtitle="从项目配置文件或最近项目进入工作区" />
         <button
           className="primaryButton secondary"
           onClick={async () => {
@@ -438,7 +490,7 @@ function HomePage(props: {
           }}
         >
           <FolderOpen size={18} />
-          打开 project.json
+          打开项目配置文件
         </button>
         <div className="recentList">
           {props.recentProjects.length === 0 && <EmptyState text="还没有最近项目" />}
@@ -446,7 +498,7 @@ function HomePage(props: {
             <article key={item.path} className="recentItem">
               <div>
                 <strong>{item.name}</strong>
-                <span>{item.gameType} · {item.style}</span>
+                <span>{gameTypeLabel(item.gameType)} · {item.style}</span>
                 <small>{item.path}</small>
               </div>
               <div className="rowActions">
@@ -486,7 +538,7 @@ function ProjectPage(props: {
   onSaved: (project: Project) => void;
 }): JSX.Element {
   const [draft, setDraft] = useState<Project>(props.project);
-  const [newTemplate, setNewTemplate] = useState({ name: "赛博朋克霓虹风", description: "cyberpunk neon 2D game art, clean silhouette" });
+  const [newTemplate, setNewTemplate] = useState({ name: "赛博朋克霓虹风", description: "赛博朋克霓虹二维游戏美术，轮廓干净" });
 
   useEffect(() => setDraft(props.project), [props.project]);
 
@@ -495,9 +547,9 @@ function ProjectPage(props: {
       id: crypto.randomUUID(),
       name: newTemplate.name,
       description: newTemplate.description,
-      lineWeight: "consistent outlines",
-      lighting: "single key light",
-      cameraView: "project default"
+      lineWeight: "轮廓一致",
+      lighting: "单主光",
+      cameraView: "项目默认视角"
     };
     setDraft({ ...draft, styleTemplates: [template, ...draft.styleTemplates] });
   }
@@ -508,13 +560,13 @@ function ProjectPage(props: {
 
   return (
     <section className="panel wide">
-      <PanelTitle icon={Gauge} title="项目配置" subtitle="这些配置会写回 project.json 并参与后续 prompt 与导出" />
+      <PanelTitle icon={Gauge} title="项目配置" subtitle="这些配置会写回项目配置文件，并参与后续提示词与导出" />
       <div className="formGrid three">
         <TextInput label="项目名称" value={draft.name} onChange={(name) => setDraft({ ...draft, name })} />
         <SelectInput
           label="游戏类型"
           value={draft.gameType}
-          options={["RPG", "平台跳跃", "俯视角", "横版动作", "卡牌", "塔防", "其他"]}
+          options={gameTypeOptions}
           onChange={(gameType) => setDraft({ ...draft, gameType })}
         />
         <SelectInput
@@ -527,17 +579,17 @@ function ProjectPage(props: {
         <SelectInput
           label="默认背景"
           value={draft.defaultBackground}
-          options={["transparent", "solid", "custom"]}
+          options={backgroundOptions}
           onChange={(defaultBackground) => setDraft({ ...draft, defaultBackground: defaultBackground as Project["defaultBackground"] })}
         />
         <TextInput label="项目路径" value={draft.path} disabled onChange={() => undefined} />
       </div>
-      <TextArea label="项目风格描述（将注入所有 AI 生成 prompt）" value={draft.styleDescription} onChange={(styleDescription) => setDraft({ ...draft, styleDescription })} />
+      <TextArea label="项目风格描述（将注入所有智能生成提示词）" value={draft.styleDescription} onChange={(styleDescription) => setDraft({ ...draft, styleDescription })} />
       <TargetPicker value={draft.exportTargets} onChange={(exportTargets) => setDraft({ ...draft, exportTargets })} />
 
       <div className="panelTitle" style={{ border: "none", padding: "12px 0 0", marginTop: 4 }}>
         <div className="panelIcon"><Brush size={18} /></div>
-        <div><h2>风格模板</h2><p>点击模板卡片即可注入上方项目风格 prompt</p></div>
+        <div><h2>风格模板</h2><p>点击模板卡片即可注入上方项目风格提示词</p></div>
       </div>
 
       <div className="templateGrid">
@@ -548,7 +600,7 @@ function ProjectPage(props: {
             className="templateItem templateItemAction"
             role="button"
             tabIndex={0}
-            title="点击注入到项目风格 prompt"
+            title="点击注入到项目风格提示词"
             onClick={() => applyTemplate(template)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -569,8 +621,8 @@ function ProjectPage(props: {
             </button>
             <strong>{template.name}</strong>
             <span>{template.description}</span>
-            <small>{template.lineWeight ?? "line"} · {template.lighting ?? "light"} · {template.cameraView ?? "view"}</small>
-            <small className="templateHint">点击注入 prompt</small>
+            <small>{template.lineWeight ?? "线条"} · {template.lighting ?? "光照"} · {template.cameraView ?? "视角"}</small>
+            <small className="templateHint">点击注入提示词</small>
           </article>
         ))}
       </div>
@@ -592,7 +644,7 @@ function ProjectPage(props: {
         }}
       >
         <Save size={18} />
-        保存 project.json
+        保存项目配置
       </button>
     </section>
   );
@@ -621,13 +673,13 @@ function GeneratePage(props: {
   const [count, setCount] = useState(props.settings.defaultGenerationCount);
   const [transparentBackground, setTransparentBackground] = useState(defaultPresets.transparentBackground);
   const [targets, setTargets] = useState<ExportTarget[]>(props.project.exportTargets);
-  const [iconItemsText, setIconItemsText] = useState("potion\ncoin\nkey\nshort sword\nshield\nscroll\nmagic stone");
+  const [iconItemsText, setIconItemsText] = useState("药水\n金币\n钥匙\n短剑\n盾牌\n卷轴\n魔法石");
   const [makeAtlas, setMakeAtlas] = useState(props.settings.autoPackAtlas);
   const [characterView, setCharacterView] = useState("side-view");
   const [animations, setAnimations] = useState<AnimationConfig[]>(defaultAnimations);
   const [makeSpriteSheet, setMakeSpriteSheet] = useState(true);
-  const [tileTheme, setTileTheme] = useState("dungeon");
-  const [tileTypesText, setTileTypesText] = useState("floor\nwall\ninner corner\nouter corner\ndoor\nwater\ncrack\ntreasure chest");
+  const [tileTheme, setTileTheme] = useState("地牢");
+  const [tileTypesText, setTileTypesText] = useState("地板\n墙体\n内角\n外角\n门\n水池\n裂缝\n宝箱");
   const [tileSeamless, setTileSeamless] = useState(true);
   const [makeTiled, setMakeTiled] = useState(true);
 
@@ -694,10 +746,10 @@ function GeneratePage(props: {
   return (
     <div className="pageGrid generation">
       <section className="panel">
-        <PanelTitle icon={Wand2} title="素材生成" subtitle={`当前 API: ${props.settings.aiProvider} · 模型: ${props.settings.model}`} />
+        <PanelTitle icon={Wand2} title="素材生成" subtitle={`当前接口：${providerLabel(props.settings.aiProvider)} · 模型：${props.settings.model}`} />
         {props.settings.aiProvider === "local-draft" && (
           <div className="inlineWarning">
-            当前是 local-draft 本地草稿模式，不会调用外部 AI API。要调用中转站，请到设置页切换 Provider。
+            当前是本地草稿模式，不会调用外部智能生成接口。要调用中转服务，请到设置页切换服务商。
           </div>
         )}
         <div className="typeRail">
@@ -722,7 +774,7 @@ function GeneratePage(props: {
         </div>
 
         <div className="inlineNote">
-          项目风格会自动注入生成 prompt；这里填写当前素材独有的造型、材质、姿态或构图细节。
+          项目风格会自动注入生成提示词；这里填写当前素材独有的造型、材质、姿态或构图细节。
         </div>
         {generationMode === "image-to-image" && (
           <ReferenceImagePanel
@@ -748,7 +800,7 @@ function GeneratePage(props: {
           <div className="detailTemplateHeader">
             <div>
               <strong>对象细节模板</strong>
-              <span>点击卡片即可注入下方对象细节 prompt</span>
+              <span>点击卡片即可注入下方对象细节提示词</span>
             </div>
             {detailPrompt && (
               <button className="miniClearButton" type="button" onClick={() => setDetailPrompt("")}>
@@ -762,25 +814,25 @@ function GeneratePage(props: {
                 key={template.id}
                 type="button"
                 className={detailPrompt === template.prompt ? "detailTemplateCard selected" : "detailTemplateCard"}
-                title="点击注入对象细节 prompt"
+                title="点击注入对象细节提示词"
                 onClick={() => setDetailPrompt(template.prompt)}
               >
                 <strong>{template.name}</strong>
                 <span>{template.prompt}</span>
                 <small>{template.meta}</small>
-                <em>点击注入 prompt</em>
+                <em>点击注入提示词</em>
               </button>
             ))}
           </div>
         </div>
-        <TextArea label="对象细节 prompt（可选，可编辑）" value={detailPrompt} onChange={setDetailPrompt} />
+        <TextArea label="对象细节提示词（可选，可编辑）" value={detailPrompt} onChange={setDetailPrompt} />
         <Toggle label="透明背景" value={transparentBackground} onChange={setTransparentBackground} />
         <TargetPicker value={targets} onChange={setTargets} />
 
         {(assetType === "icon" || assetType === "item" || assetType === "ui") && (
           <div className="subPanel">
             <TextArea label="批量名称列表" value={iconItemsText} onChange={setIconItemsText} />
-            <Toggle label="生成 Atlas" value={makeAtlas} onChange={setMakeAtlas} />
+            <Toggle label="生成图集" value={makeAtlas} onChange={setMakeAtlas} />
           </div>
         )}
 
@@ -789,20 +841,20 @@ function GeneratePage(props: {
             <SelectInput
               label="角色视角"
               value={characterView}
-              options={["side-view", "top-down", "four-direction", "eight-direction"]}
+              options={characterViewOptions}
               onChange={setCharacterView}
             />
             <AnimationEditor value={animations} onChange={setAnimations} />
-            <Toggle label="合成 Sprite Sheet" value={makeSpriteSheet} onChange={setMakeSpriteSheet} />
+            <Toggle label="合成精灵表" value={makeSpriteSheet} onChange={setMakeSpriteSheet} />
           </div>
         )}
 
         {assetType === "tileset" && (
           <div className="subPanel">
-            <TextInput label="TileSet 主题" value={tileTheme} onChange={setTileTheme} />
-            <TextArea label="Tile 类型" value={tileTypesText} onChange={setTileTypesText} />
+            <TextInput label="瓦片集主题" value={tileTheme} onChange={setTileTheme} />
+            <TextArea label="瓦片类型" value={tileTypesText} onChange={setTileTypesText} />
             <Toggle label="边缘尽量可拼接" value={tileSeamless} onChange={setTileSeamless} />
-            <Toggle label="生成 Tiled TMX" value={makeTiled} onChange={setMakeTiled} />
+            <Toggle label="生成 Tiled 地图文件" value={makeTiled} onChange={setMakeTiled} />
           </div>
         )}
 
@@ -813,7 +865,7 @@ function GeneratePage(props: {
             const result = await props.runTask(
               "生成素材",
               () => unwrap(window.aiSpriteStudio.generateAssets(input)),
-              (generated) => `生成完成：${generated.files.length} 个文件，metadata: ${generated.metadataPath ?? "无"}`
+              (generated) => `生成完成：${generated.files.length} 个文件，元数据：${generated.metadataPath ?? "无"}`
             );
             if (result) await props.onGenerated();
           }}
@@ -824,9 +876,63 @@ function GeneratePage(props: {
       </section>
 
       <section className="panel">
-        <PanelTitle icon={Archive} title="将执行的任务" subtitle="提交后由 Electron 主进程执行" />
-        <pre className="jsonPreview">{JSON.stringify(input, null, 2)}</pre>
+        <PanelTitle icon={Archive} title="任务摘要" subtitle="提交后由桌面主进程执行" />
+        <TaskSummary input={input} />
       </section>
+    </div>
+  );
+}
+
+function TaskSummary(props: { input: GenerateAssetInput }): JSX.Element {
+  const input = props.input;
+  const lines = [
+    ["生成方式", input.generationMode === "image-to-image" ? "参考图生成" : "文本生成"],
+    ["素材类型", assetTypeLabels[input.assetType]],
+    ["素材名称", input.name || "未命名"],
+    ["画布尺寸", input.size],
+    ["生成数量", `${input.count}`],
+    ["透明背景", input.transparentBackground ? "是" : "否"],
+    ["导出目标", input.exportTargets.map((target) => exportTargetLabels[target]).join("、") || "未选择"],
+    ["图集输出", input.makeAtlas ? "生成" : "不生成"],
+    ["精灵表输出", input.makeSpriteSheet ? "生成" : "不生成"],
+    ["瓦片地图输出", input.makeTiled ? "生成" : "不生成"]
+  ];
+
+  if (input.generationMode === "image-to-image") {
+    lines.push(["参考图数量", `${input.referenceImages.length}`]);
+    lines.push(["编辑意图", editIntentLabels[input.editIntent]]);
+    lines.push(["参考强度", referenceStrengthLabels[input.referenceStrength]]);
+    lines.push(["蒙版", input.maskImagePath ? "已选择" : "未选择"]);
+  }
+
+  return (
+    <div className="taskSummary">
+      {lines.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+      <section>
+        <span>描述</span>
+        <p>{input.description || "未填写"}</p>
+      </section>
+      {input.detailPrompt && (
+        <section>
+          <span>对象细节提示词</span>
+          <p>{input.detailPrompt}</p>
+        </section>
+      )}
+      {input.generationMode === "image-to-image" && input.referenceImages.length > 0 && (
+        <section>
+          <span>参考图用途</span>
+          <p>
+            {input.referenceImages
+              .map((image, index) => `第 ${index + 1} 张：${referenceRoles.find((role) => role.value === image.role)?.label ?? image.role}`)
+              .join("；")}
+          </p>
+        </section>
+      )}
     </div>
   );
 }
@@ -863,9 +969,9 @@ function ReferenceImagePanel(props: {
 
   async function importMask(): Promise<void> {
     const imported = await props.runTask(
-      "导入 Mask",
+      "导入蒙版",
       () => unwrap(window.aiSpriteStudio.chooseMaskImage(props.project.path)),
-      () => "Mask 已导入"
+      () => "蒙版已导入"
     );
     if (imported) props.onMaskChange(imported);
   }
@@ -879,7 +985,7 @@ function ReferenceImagePanel(props: {
       <div className="referenceHeader">
         <div>
           <strong>参考图</strong>
-          <span>{props.value.length}/4 · 导入后会复制到当前项目 references 目录</span>
+          <span>{props.value.length}/4 · 导入后会复制到当前项目参考图目录</span>
         </div>
         <div className="referenceActions">
           <button className="ghostButton" type="button" onClick={importReferences} disabled={props.value.length >= 4}>
@@ -919,7 +1025,7 @@ function ReferenceImagePanel(props: {
               </div>
               <div className="referenceMeta">
                 <strong>{image.name ?? image.path.split(/[\\/]/).pop()}</strong>
-                <small>{image.width && image.height ? `${image.width}x${image.height}` : "project asset"}</small>
+                <small>{image.width && image.height ? `${image.width}x${image.height}` : "项目素材"}</small>
                 <select value={image.role} onChange={(event) => updateRole(image.path, event.target.value as ReferenceImageRole)}>
                   {referenceRoles.map((role) => (
                     <option key={role.value} value={role.value}>
@@ -944,16 +1050,16 @@ function ReferenceImagePanel(props: {
       {props.editIntent === "inpaint" && (
         <div className="maskPanel">
           <div>
-            <strong>局部替换 Mask</strong>
-            <span>{props.maskImage ? props.maskImage.name ?? props.maskImage.path : "需要带 alpha 通道的 PNG"}</span>
+            <strong>局部替换蒙版</strong>
+            <span>{props.maskImage ? props.maskImage.name ?? props.maskImage.path : "需要带透明通道的 PNG 图片"}</span>
           </div>
           <button className="ghostButton" type="button" onClick={importMask}>
             <Brush size={15} />
-            选择 Mask
+            选择蒙版
           </button>
           {props.maskImage && (
             <button className="miniClearButton" type="button" onClick={() => props.onMaskChange(null)}>
-              移除 Mask
+              移除蒙版
             </button>
           )}
         </div>
@@ -986,7 +1092,7 @@ function PreviewPage(props: {
       </div>
       <button className="ghostButton" onClick={() => props.refreshProject()}>
         <RefreshCw size={16} />
-        重新读取 project.json
+        重新读取项目配置
       </button>
     </section>
   );
@@ -1001,9 +1107,9 @@ function ExportPage(props: {
 
   return (
     <section className="panel wide">
-      <PanelTitle icon={Package} title="导出" subtitle="生成 Unity / Godot / Tiled / 通用资源目录和 ZIP 包" />
+      <PanelTitle icon={Package} title="导出" subtitle="生成 Unity、Godot、Tiled 和通用资源目录，以及压缩包" />
       <TargetPicker value={targets} onChange={setTargets} />
-      <Toggle label="生成完整 ZIP 包" value={includeZip} onChange={setIncludeZip} />
+      <Toggle label="生成完整压缩包" value={includeZip} onChange={setIncludeZip} />
       <button
         className="primaryButton"
         onClick={async () => {
@@ -1035,7 +1141,7 @@ function HistoryPage(props: { project: Project; history: GenerationHistoryRecord
             <div>
               <strong>{record.parameters.name || record.assetType}</strong>
               <span>
-                {record.assetType} · {record.parameters.generationMode === "image-to-image" ? "参考图生成" : "文本生成"} ·{" "}
+                {assetTypeLabels[record.assetType]} · {record.parameters.generationMode === "image-to-image" ? "参考图生成" : "文本生成"} ·{" "}
                 {new Date(record.createdAt).toLocaleString()}
               </span>
               <small>{record.outputFiles.join(" · ")}</small>
@@ -1058,23 +1164,23 @@ function SettingsPage(props: {
 
   return (
     <section className="panel wide">
-      <PanelTitle icon={Settings} title="设置" subtitle="API Key、默认路径和生成参数保存在本机 userData 目录" />
+      <PanelTitle icon={Settings} title="设置" subtitle="接口密钥、默认路径和生成参数保存在本机应用数据目录" />
       <div className="formGrid three">
         <SelectInput
-          label="AI API Provider"
+          label="人工智能接口服务商"
           value={draft.aiProvider}
-          options={["openai", "custom", "local-draft"]}
+          options={providerOptions}
           onChange={(aiProvider) => setDraft({ ...draft, aiProvider: aiProvider as AppSettings["aiProvider"] })}
         />
         <TextInput label="默认模型" value={draft.model} onChange={(model) => setDraft({ ...draft, model })} />
         <SelectInput
           label="生成质量"
           value={draft.generationQuality}
-          options={["low", "medium", "high"]}
+          options={qualityOptions}
           onChange={(generationQuality) => setDraft({ ...draft, generationQuality: generationQuality as AppSettings["generationQuality"] })}
         />
-        <TextInput label="API Base URL" value={draft.apiBaseUrl} onChange={(apiBaseUrl) => setDraft({ ...draft, apiBaseUrl })} />
-        <TextInput label="API Key" value={draft.apiKey} type="password" onChange={(apiKey) => setDraft({ ...draft, apiKey })} />
+        <TextInput label="接口基础地址" value={draft.apiBaseUrl} onChange={(apiBaseUrl) => setDraft({ ...draft, apiBaseUrl })} />
+        <TextInput label="接口密钥" value={draft.apiKey} type="password" onChange={(apiKey) => setDraft({ ...draft, apiKey })} />
         <TextInput label="默认项目目录" value={draft.defaultProjectRoot} onChange={(defaultProjectRoot) => setDraft({ ...draft, defaultProjectRoot })} />
         <TextInput label="默认导出目录" value={draft.defaultExportDirectory} onChange={(defaultExportDirectory) => setDraft({ ...draft, defaultExportDirectory })} />
         <TextInput label="默认图像尺寸" value={draft.defaultImageSize} onChange={(defaultImageSize) => setDraft({ ...draft, defaultImageSize })} />
@@ -1087,10 +1193,10 @@ function SettingsPage(props: {
         />
       </div>
       <div className="toggleRow">
-        <Toggle label="保存 Prompt 历史" value={draft.savePromptHistory} onChange={(savePromptHistory) => setDraft({ ...draft, savePromptHistory })} />
+        <Toggle label="保存提示词历史" value={draft.savePromptHistory} onChange={(savePromptHistory) => setDraft({ ...draft, savePromptHistory })} />
         <Toggle label="自动透明背景" value={draft.autoTransparent} onChange={(autoTransparent) => setDraft({ ...draft, autoTransparent })} />
         <Toggle label="自动裁切" value={draft.autoTrim} onChange={(autoTrim) => setDraft({ ...draft, autoTrim })} />
-        <Toggle label="自动打包 Atlas" value={draft.autoPackAtlas} onChange={(autoPackAtlas) => setDraft({ ...draft, autoPackAtlas })} />
+        <Toggle label="自动打包图集" value={draft.autoPackAtlas} onChange={(autoPackAtlas) => setDraft({ ...draft, autoPackAtlas })} />
       </div>
       <button
         className="primaryButton"
@@ -1133,19 +1239,19 @@ function AssetCard(props: {
       <div className="assetPreview">{dataUrl ? <img src={dataUrl} alt={props.asset.name} /> : <Boxes size={42} />}</div>
       <div className="assetBody">
         <strong>{props.asset.name}</strong>
-        <span>{props.asset.type} · {props.asset.size.width}x{props.asset.size.height}</span>
-        <small>{props.asset.files.length} files</small>
+        <span>{assetTypeLabels[props.asset.type]} · {props.asset.size.width}x{props.asset.size.height}</span>
+        <small>{props.asset.files.length} 个文件</small>
       </div>
       <div className="assetActions">
-        {props.asset.generationMode === "image-to-image" && <Pill>Ref</Pill>}
-        {props.asset.sheetPath && <Pill>Sheet</Pill>}
-        {props.asset.atlasPath && <Pill>Atlas</Pill>}
-        {props.asset.metadataPath && <Pill>JSON</Pill>}
+        {props.asset.generationMode === "image-to-image" && <Pill>参考图</Pill>}
+        {props.asset.sheetPath && <Pill>精灵表</Pill>}
+        {props.asset.atlasPath && <Pill>图集</Pill>}
+        {props.asset.metadataPath && <Pill>元数据</Pill>}
       </div>
       {props.asset.exportTargets && props.asset.exportTargets.length > 0 && (
         <div className="assetActions" style={{ gap: 4 }}>
           {props.asset.exportTargets.map((t) => (
-            <span key={t} className="pill" style={{ borderColor: "rgba(0,212,255,0.25)", color: "var(--cyan)", background: "var(--cyan-dim)" }}>{t}</span>
+            <span key={t} className="pill" style={{ borderColor: "rgba(0,212,255,0.25)", color: "var(--cyan)", background: "var(--cyan-dim)" }}>{exportTargetLabels[t]}</span>
           ))}
         </div>
       )}
@@ -1214,12 +1320,12 @@ function AnimationEditor(props: { value: AnimationConfig[]; onChange: (value: An
             value={animation.fps}
             onChange={(event) => update(index, { fps: Number(event.target.value) })}
           />
-          <button onClick={() => update(index, { loop: !animation.loop })}>{animation.loop ? "Loop" : "Once"}</button>
+          <button onClick={() => update(index, { loop: !animation.loop })}>{animation.loop ? "循环" : "单次"}</button>
         </div>
       ))}
       <button
         className="ghostButton"
-        onClick={() => props.onChange([...props.value, { name: "hurt", frames: 4, fps: 8, loop: false }])}
+        onClick={() => props.onChange([...props.value, { name: "受击", frames: 4, fps: 8, loop: false }])}
       >
         <Plus size={15} />
         添加动作
@@ -1287,14 +1393,14 @@ function TextArea(props: { label: string; value: string; onChange: (value: strin
   );
 }
 
-function SelectInput(props: { label: string; value: string; options: string[]; onChange: (value: string) => void }): JSX.Element {
+function SelectInput(props: { label: string; value: string; options: SelectOption[]; onChange: (value: string) => void }): JSX.Element {
   return (
     <label className="field">
       <span>{props.label}</span>
       <select value={props.value} onChange={(event) => props.onChange(event.target.value)}>
         {props.options.map((option) => (
-          <option key={option} value={option}>
-            {option}
+          <option key={selectOptionValue(option)} value={selectOptionValue(option)}>
+            {selectOptionLabel(option)}
           </option>
         ))}
       </select>
@@ -1322,7 +1428,7 @@ function TargetPicker(props: { value: ExportTarget[]; onChange: (value: ExportTa
       <div>
         {exportTargets.map((target) => (
           <button key={target} className={props.value.includes(target) ? "selected" : ""} onClick={() => toggle(target)}>
-            {target}
+            {exportTargetLabels[target]}
           </button>
         ))}
       </div>
@@ -1340,13 +1446,13 @@ function EmptyState(props: { text: string }): JSX.Element {
 
 function pageLabel(page: Page): string {
   const labels: Record<Page, string> = {
-    home: "Project Home",
-    project: "Project Settings",
-    generate: "Generate Assets",
-    preview: "Preview",
-    export: "Export",
-    history: "History",
-    settings: "App Settings"
+    home: "项目首页",
+    project: "项目配置",
+    generate: "素材生成",
+    preview: "素材预览",
+    export: "资源导出",
+    history: "历史记录",
+    settings: "应用设置"
   };
   return labels[page];
 }
@@ -1354,21 +1460,21 @@ function pageLabel(page: Page): string {
 function presetsFor(type: AssetType, defaultSize: string): { name: string; description: string; size: string; transparentBackground: boolean } {
   switch (type) {
     case "character":
-      return { name: "knight", description: "silver armor knight with short sword", size: "64x64", transparentBackground: true };
+      return { name: "骑士", description: "银色盔甲骑士，手持短剑", size: "64x64", transparentBackground: true };
     case "tileset":
-      return { name: "dungeon", description: "stone dungeon modular tile set", size: "32x32", transparentBackground: false };
+      return { name: "地牢", description: "石质地牢模块化瓦片集", size: "32x32", transparentBackground: false };
     case "icon":
-      return { name: "rpg_items", description: "medieval RPG inventory icons, readable silhouettes", size: defaultSize, transparentBackground: true };
+      return { name: "角色扮演道具", description: "中世纪背包图标，轮廓清晰易识别", size: defaultSize, transparentBackground: true };
     case "item":
-      return { name: "rpg_items", description: "medieval RPG inventory props, readable silhouettes", size: defaultSize, transparentBackground: true };
+      return { name: "角色扮演道具", description: "中世纪背包道具，轮廓清晰易识别", size: defaultSize, transparentBackground: true };
     case "enemy":
-      return { name: "slime", description: "small dungeon slime enemy, readable silhouette", size: defaultSize, transparentBackground: true };
+      return { name: "史莱姆", description: "小型地牢软体怪，轮廓清晰", size: defaultSize, transparentBackground: true };
     case "ui":
-      return { name: "ui_panel", description: "game UI panel elements, clean flat style", size: defaultSize, transparentBackground: true };
+      return { name: "界面面板", description: "游戏界面面板元素，干净扁平风格", size: defaultSize, transparentBackground: true };
     case "background":
-      return { name: "forest_bg", description: "side-scrolling forest background layer", size: "128x128", transparentBackground: false };
+      return { name: "森林背景", description: "横版卷轴森林背景层", size: "128x128", transparentBackground: false };
     case "effect":
-      return { name: "fire_effect", description: "fire explosion particle sprite sheet", size: "64x64", transparentBackground: true };
+      return { name: "火焰特效", description: "火焰爆炸粒子精灵表", size: "64x64", transparentBackground: true };
   }
 }
 
@@ -1386,6 +1492,24 @@ function toReferenceInput(image: ReferenceDraft): ReferenceImageInput {
     sourceAssetId: image.sourceAssetId,
     name: image.name
   };
+}
+
+function selectOptionValue(option: SelectOption): string {
+  return typeof option === "string" ? option : option.value;
+}
+
+function selectOptionLabel(option: SelectOption): string {
+  return typeof option === "string" ? option : option.label;
+}
+
+function providerLabel(provider: AppSettings["aiProvider"]): string {
+  const found = providerOptions.find((option) => selectOptionValue(option) === provider);
+  return found ? selectOptionLabel(found) : provider;
+}
+
+function gameTypeLabel(gameType: string): string {
+  const found = gameTypeOptions.find((option) => selectOptionValue(option) === gameType);
+  return found ? selectOptionLabel(found) : gameType;
 }
 
 function resolveFile(projectPath: string, filePath: string): string {

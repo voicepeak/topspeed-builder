@@ -18,7 +18,7 @@ export class ReferenceService {
   async chooseReferenceImages(projectPath: string): Promise<ImportedReferenceImage[]> {
     const result = await dialog.showOpenDialog({
       title: "选择参考图",
-      filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "webp"] }],
+      filters: [{ name: "图片", extensions: ["png", "jpg", "jpeg", "webp"] }],
       properties: ["openFile", "multiSelections"]
     });
 
@@ -35,13 +35,13 @@ export class ReferenceService {
 
   async chooseMask(projectPath: string): Promise<ImportedReferenceImage> {
     const result = await dialog.showOpenDialog({
-      title: "选择局部编辑 Mask PNG",
-      filters: [{ name: "PNG Mask", extensions: ["png"] }],
+      title: "选择局部编辑蒙版图片",
+      filters: [{ name: "PNG 蒙版", extensions: ["png"] }],
       properties: ["openFile"]
     });
 
     if (result.canceled || result.filePaths.length === 0) {
-      throw new Error("已取消选择 Mask");
+      throw new Error("已取消选择蒙版");
     }
 
     const imported = await this.importImage(projectPath, result.filePaths[0], "references/masks", true);
@@ -59,11 +59,11 @@ export class ReferenceService {
     const extension = path.extname(sourcePath).toLowerCase();
     const mime = MIME_BY_EXTENSION[extension];
     if (!mime) {
-      throw new Error(`不支持的参考图格式：${extension || "unknown"}，仅支持 PNG/JPG/WebP。`);
+      throw new Error(`不支持的参考图格式：${extension || "未知"}，仅支持 PNG/JPG/WebP。`);
     }
 
     if (requireAlpha && extension !== ".png") {
-      throw new Error("Mask 必须是带 alpha 通道的 PNG 文件。");
+      throw new Error("蒙版必须是带透明通道的 PNG 文件。");
     }
 
     const stats = await fs.stat(sourcePath);
@@ -77,7 +77,7 @@ export class ReferenceService {
     }
 
     if (requireAlpha && !metadata.hasAlpha) {
-      throw new Error("Mask PNG 必须包含 alpha 通道；透明区域表示可编辑区域。");
+      throw new Error("蒙版图片必须包含透明通道；透明区域表示可编辑区域。");
     }
 
     const buffer = await fs.readFile(sourcePath);

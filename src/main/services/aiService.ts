@@ -49,16 +49,16 @@ export class AIGenerationService {
     transparentBackground: boolean;
   }): string {
     const background = parts.transparentBackground
-      ? "Transparent background. Centered subject. No shadow floor, no text, no watermark."
-      : "Clean game asset background.";
+      ? "透明背景，主体居中，不要地面阴影，不要文字，不要水印。"
+      : "干净的游戏素材背景。";
 
     return [
-      `Create a game-ready 2D ${parts.assetType} sprite named ${parts.name}.`,
-      `Description: ${parts.description}.`,
-      `Style: ${parts.style}.`,
-      `Target final sprite canvas: ${parts.size}.`,
+      `生成可直接用于游戏工程的二维${parts.assetType}精灵，名称为：${parts.name}。`,
+      `素材描述：${parts.description}。`,
+      `美术风格：${parts.style}。`,
+      `最终画布尺寸：${parts.size}。`,
       background,
-      "Readable silhouette. Consistent proportions. Asset-isolated composition.",
+      "轮廓必须清晰可读，比例保持一致，构图只包含当前素材主体。",
       parts.extra ?? ""
     ]
       .filter(Boolean)
@@ -67,11 +67,11 @@ export class AIGenerationService {
 
   private async generateWithOpenAI(args: GenerateImageArgs): Promise<Buffer> {
     if (!args.settings.apiKey.trim()) {
-      throw new Error("OpenAI API Key 为空。请在设置页配置 API Key，或切换到本地草稿模式。");
+      throw new Error("OpenAI 接口密钥为空。请在设置页配置接口密钥，或切换到本地草稿模式。");
     }
 
     const endpoint = this.resolveOpenAIImageEndpoint(args.settings.apiBaseUrl, "generations");
-    this.assertHttpEndpoint(endpoint, "OpenAI API Base URL");
+    this.assertHttpEndpoint(endpoint, "OpenAI 接口基础地址");
     const requestPayload: Record<string, unknown> = {
       model: args.settings.model || "gpt-image-1.5",
       prompt: args.prompt,
@@ -92,7 +92,7 @@ export class AIGenerationService {
     const responseText = await response.text();
     if (!response.ok) {
       throw new Error(
-        `OpenAI 图片生成失败: HTTP ${response.status} ${response.statusText}. ${this.summarizeBody(responseText)}`
+        `OpenAI 图片生成失败：HTTP ${response.status} ${response.statusText}. ${this.summarizeBody(responseText)}`
       );
     }
 
@@ -109,7 +109,7 @@ export class AIGenerationService {
 
   private async generateWithOpenAIEdit(args: GenerateImageArgs): Promise<Buffer> {
     if (!args.settings.apiKey.trim()) {
-      throw new Error("OpenAI API Key 为空。请在设置页配置 API Key，或切换到本地草稿模式。");
+      throw new Error("OpenAI 接口密钥为空。请在设置页配置接口密钥，或切换到本地草稿模式。");
     }
 
     const references = args.referenceImages ?? [];
@@ -118,7 +118,7 @@ export class AIGenerationService {
     }
 
     const endpoint = this.resolveOpenAIImageEndpoint(args.settings.apiBaseUrl, "edits");
-    this.assertHttpEndpoint(endpoint, "OpenAI API Base URL");
+    this.assertHttpEndpoint(endpoint, "OpenAI 接口基础地址");
 
     const form = new FormData();
     form.append("model", args.settings.model || "gpt-image-1.5");
@@ -152,11 +152,11 @@ export class AIGenerationService {
 
   private async generateWithCustomProvider(args: GenerateImageArgs): Promise<Buffer> {
     if (!args.settings.apiBaseUrl.trim()) {
-      throw new Error("自定义 API 地址为空。请在设置页配置 apiBaseUrl。");
+      throw new Error("自定义接口地址为空。请在设置页配置接口基础地址。");
     }
 
     const endpoint = args.settings.apiBaseUrl.trim();
-    this.assertHttpEndpoint(endpoint, "自定义 API Base URL");
+    this.assertHttpEndpoint(endpoint, "自定义接口基础地址");
 
     if ((args.referenceImages?.length ?? 0) > 0 || args.maskImagePath) {
       const form = new FormData();
@@ -193,7 +193,7 @@ export class AIGenerationService {
         body: form
       });
 
-      return this.readImageResponse(response, "自定义 API", endpoint);
+      return this.readImageResponse(response, "自定义接口", endpoint);
     }
 
     const response = await fetch(endpoint, {
@@ -210,7 +210,7 @@ export class AIGenerationService {
       })
     });
 
-    return this.readImageResponse(response, "自定义 API", endpoint);
+    return this.readImageResponse(response, "自定义接口", endpoint);
   }
 
   private resolveOpenAIImageEndpoint(input: string, mode: "generations" | "edits"): string {
@@ -259,8 +259,8 @@ export class AIGenerationService {
     } catch {
       const responseKind = responseText.trimStart().startsWith("<") ? "HTML 页面" : "非 JSON 内容";
       throw new Error(
-        `${context.provider} 返回了${responseKind}，无法解析图片结果。请检查设置页的 API Base URL 是否是图片生成接口，不要填网页地址。` +
-          ` 当前 URL: ${context.endpoint}; HTTP ${context.status}; Content-Type: ${context.contentType || "unknown"}; ` +
+        `${context.provider} 返回了${responseKind}，无法解析图片结果。请检查设置页的接口基础地址是否是图片生成接口，不要填网页地址。` +
+          ` 当前 URL: ${context.endpoint}; HTTP ${context.status}; Content-Type: ${context.contentType || "未知"}; ` +
           this.summarizeBody(responseText)
       );
     }
@@ -270,7 +270,7 @@ export class AIGenerationService {
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("image/")) {
       if (!response.ok) {
-        throw new Error(`${provider} 图片 API 失败: HTTP ${response.status} ${response.statusText}`);
+        throw new Error(`${provider} 图片接口失败: HTTP ${response.status} ${response.statusText}`);
       }
       return Buffer.from(await response.arrayBuffer());
     }
@@ -278,7 +278,7 @@ export class AIGenerationService {
     const responseText = await response.text();
     if (!response.ok) {
       throw new Error(
-        `${provider} 图片 API 失败: HTTP ${response.status} ${response.statusText}. ${this.summarizeBody(responseText)}`
+        `${provider} 图片接口失败: HTTP ${response.status} ${response.statusText}. ${this.summarizeBody(responseText)}`
       );
     }
 
@@ -310,7 +310,7 @@ export class AIGenerationService {
       return Buffer.from(await imageResponse.arrayBuffer());
     }
 
-    throw new Error(`${provider} 响应中没有 b64_json、image 或 url 图片数据。`);
+    throw new Error(`${provider} 响应中没有可解析的图片数据。`);
   }
 
   private summarizeBody(body: string): string {
@@ -344,7 +344,7 @@ export class AIGenerationService {
     const hue = hash % 360;
     const accentHue = (hue + 127) % 360;
     const shadowHue = (hue + 220) % 360;
-    const label = prompt.match(/named ([^\n.]+)/i)?.[1]?.slice(0, 10) ?? "draft";
+    const label = (prompt.match(/名称为：([^。\n]+)/)?.[1] ?? prompt.match(/named ([^\n.]+)/i)?.[1] ?? "草稿").slice(0, 10);
 
     const blocks = Array.from({ length: 18 }, (_, index) => {
       const x = 10 + ((hash >> (index % 12)) & 31);
@@ -397,7 +397,7 @@ export class AIGenerationService {
         Buffer.from(`
           <svg width="${canvasWidth}" height="${canvasHeight}" xmlns="http://www.w3.org/2000/svg">
             <rect x="2" y="2" width="30" height="12" rx="3" fill="rgba(0, 212, 255, .68)"/>
-            <text x="17" y="10.5" text-anchor="middle" font-size="7" font-family="monospace" fill="#071013">ref</text>
+            <text x="17" y="10.5" text-anchor="middle" font-size="7" font-family="monospace" fill="#071013">参考</text>
           </svg>
         `)
       )

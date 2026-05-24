@@ -27,7 +27,7 @@ export class AtlasPackingService {
     );
 
     if (images.length === 0) {
-      throw new Error("Atlas 打包失败：没有可用 PNG 文件。");
+      throw new Error("图集打包失败：没有可用 PNG 文件。");
     }
 
     let x = padding;

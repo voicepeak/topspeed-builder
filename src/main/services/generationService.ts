@@ -84,13 +84,13 @@ export class GenerationService {
       const rawPath = path.join(project.path, "generated", "raw", runId, fileName);
       const processedPath = path.join(project.path, outputDirectory, fileName);
       const prompt = this.aiService.buildPrompt({
-        assetType: input.assetType,
+        assetType: this.assetTypeLabel(input.assetType),
         name: itemName,
-        description: `${input.description}. Item list context: ${itemNames.join(", ")}`,
+        description: `${input.description}。同批次物品列表：${itemNames.join("、")}`,
         style: this.buildStylePrompt(project, input),
         size: input.size,
         transparentBackground: input.transparentBackground,
-        extra: ["Single centered icon. Orthographic game inventory asset. Keep consistent palette with the batch.", referenceGuidance]
+        extra: ["单个居中图标。正交视角的游戏背包素材。与同批次保持一致色板。", referenceGuidance]
           .filter(Boolean)
           .join(" ")
       });
@@ -131,7 +131,7 @@ export class GenerationService {
       });
       atlasPath = atlas.atlasPath;
       atlasMetadataPath = atlas.metadataPath;
-      logs.push(`生成 Atlas: ${path.join(project.path, atlasPath)}`);
+      logs.push(`生成图集: ${path.join(project.path, atlasPath)}`);
     }
 
     const metadataPath = path.join(project.path, outputDirectory, `${assetName}_metadata.json`);
@@ -149,7 +149,7 @@ export class GenerationService {
       createdAt: nowIso()
     };
     await writeJsonFile(metadataPath, metadata);
-    logs.push(`生成 metadata: ${metadataPath}`);
+    logs.push(`生成元数据: ${metadataPath}`);
 
     const asset = this.createAsset(input, {
       id: runId,
@@ -179,9 +179,9 @@ export class GenerationService {
     const animations = input.animations.length
       ? input.animations
       : [
-          { name: "idle", frames: 4, fps: 6, loop: true },
-          { name: "walk", frames: 4, fps: 8, loop: true },
-          { name: "attack", frames: 4, fps: 10, loop: false }
+          { name: "待机", frames: 4, fps: 6, loop: true },
+          { name: "行走", frames: 4, fps: 8, loop: true },
+          { name: "攻击", frames: 4, fps: 10, loop: false }
         ];
     const frames: GeneratedFrame[] = [];
     const prompts: string[] = [];
@@ -195,16 +195,16 @@ export class GenerationService {
         const rawPath = path.join(project.path, "generated", "raw", runId, fileName);
         const processedPath = path.join(project.path, "sprites", "characters", assetName, fileName);
         const prompt = this.aiService.buildPrompt({
-          assetType: "character animation frame",
+          assetType: "角色动画帧",
           name: input.name,
           description: input.description,
           style: this.buildStylePrompt(project, input),
           size: input.size,
           transparentBackground: input.transparentBackground,
           extra: [
-            `View: ${input.characterView}.`,
-            `Animation action: ${animation.name}. Frame ${frameIndex + 1} of ${animation.frames}.`,
-            "Keep the same character identity, silhouette, outfit, proportions, and camera angle across all frames.",
+            `角色视角：${this.characterViewLabel(input.characterView)}。`,
+            `动画动作：${animation.name}。第 ${frameIndex + 1} 帧，共 ${animation.frames} 帧。`,
+            "所有帧保持同一角色身份、轮廓、服装、比例和镜头角度。",
             referenceGuidance
           ].join(" ")
         });
@@ -256,7 +256,7 @@ export class GenerationService {
       });
       sheetPath = sheet.sheetPath;
       sheetMetadataPath = sheet.metadataPath;
-      logs.push(`生成 Sprite Sheet: ${path.join(project.path, sheetPath)}`);
+      logs.push(`生成精灵表: ${path.join(project.path, sheetPath)}`);
     }
 
     const files = frames.map((frame) => frame.relativePath);
@@ -307,9 +307,9 @@ export class GenerationService {
   private async generateTileset(project: Project, input: GenerateAssetInput): Promise<GeneratedAssetResult> {
     const logs: string[] = [];
     const runId = randomUUID();
-    const assetName = sanitizeFileName(input.name || input.tileTheme || "tileset");
+    const assetName = sanitizeFileName(input.name || input.tileTheme || "瓦片集");
     const size = parseSize(input.size);
-    const tileTypes = input.tileTypes.length ? input.tileTypes : ["floor", "wall", "corner", "edge", "door", "water"];
+    const tileTypes = input.tileTypes.length ? input.tileTypes : ["地板", "墙体", "转角", "边缘", "门", "水面"];
     const tiles: Array<{ filePath: string; type: string }> = [];
     const files: string[] = [];
     const prompts: string[] = [];
@@ -324,16 +324,16 @@ export class GenerationService {
       const rawPath = path.join(project.path, "generated", "raw", runId, fileName);
       const processedPath = path.join(project.path, "tilesets", assetName, fileName);
       const prompt = this.aiService.buildPrompt({
-        assetType: "tileset tile",
+        assetType: "瓦片集瓦片",
         name: tileType,
         description: `${input.tileTheme || input.description} ${tileType}`,
         style: this.buildStylePrompt(project, input),
         size: input.size,
         transparentBackground: false,
         extra: [
-          "Top-down tile. No perspective camera. Fill the full tile canvas.",
-          input.tileSeamless ? "Edges should be visually repeatable and tileable." : "",
-          `Tile belongs to the same ${assetName} tileset.`,
+          "俯视角瓦片。不要透视镜头。铺满整个瓦片画布。",
+          input.tileSeamless ? "边缘应尽量可重复、可平铺。" : "",
+          `该瓦片属于同一组「${assetName}」瓦片集。`,
           referenceGuidance
         ].join(" ")
       });
@@ -352,14 +352,14 @@ export class GenerationService {
 
         tiles.push({ filePath: processedPath, type: tileType });
         files.push(toRelative(project.path, processedPath));
-        logs.push(`生成 Tile: ${processedPath}`);
+        logs.push(`生成瓦片: ${processedPath}`);
       } catch (error) {
-        logs.push(`Tile 失败 ${tileType}: ${this.formatError(error)}`);
+        logs.push(`瓦片失败 ${tileType}: ${this.formatError(error)}`);
       }
     }
 
     if (tiles.length === 0) {
-      throw new Error(`TileSet 生成失败，没有成功输出。日志：${logs.join(" | ")}`);
+      throw new Error(`瓦片集生成失败，没有成功输出。日志：${logs.join(" | ")}`);
     }
 
     const tileset = await this.tileSetService.composeTileSet({
@@ -371,8 +371,8 @@ export class GenerationService {
       seamless: input.tileSeamless
     });
     await this.appendGenerationMetadata(path.join(project.path, tileset.metadataPath), input);
-    logs.push(`生成 TileSet: ${path.join(project.path, tileset.tilesetPath)}`);
-    logs.push(`生成 Tiled TMX: ${path.join(project.path, tileset.tmxPath)}`);
+    logs.push(`生成瓦片集: ${path.join(project.path, tileset.tilesetPath)}`);
+    logs.push(`生成 Tiled 地图文件: ${path.join(project.path, tileset.tmxPath)}`);
 
     const asset = this.createAsset(input, {
       id: runId,
@@ -418,13 +418,13 @@ export class GenerationService {
       const rawPath = path.join(project.path, "generated", "raw", runId, fileName);
       const processedPath = path.join(project.path, "generated", "processed", assetName, fileName);
       const prompt = this.aiService.buildPrompt({
-        assetType: input.assetType,
+        assetType: this.assetTypeLabel(input.assetType),
         name: input.name,
         description: input.description,
         style: this.buildStylePrompt(project, input),
         size: input.size,
         transparentBackground: input.transparentBackground,
-        extra: ["Game-ready reusable 2D asset.", referenceGuidance].filter(Boolean).join(" ")
+        extra: ["可直接复用的游戏二维素材。", referenceGuidance].filter(Boolean).join(" ")
       });
       prompts.push(prompt);
 
@@ -458,7 +458,7 @@ export class GenerationService {
         files: absoluteFiles
       });
       atlasPath = atlas.atlasPath;
-      logs.push(`生成 Atlas: ${path.join(project.path, atlasPath)}`);
+      logs.push(`生成图集: ${path.join(project.path, atlasPath)}`);
     }
 
     const metadataPath = path.join(project.path, "generated", "processed", assetName, `${assetName}_metadata.json`);
@@ -545,7 +545,7 @@ export class GenerationService {
     }
 
     if (this.isRateLimitError(lastError)) {
-      throw new Error(`图片生成 API 连续限流，已重试 4 次但没有成功；不会生成本地假图。最后错误：${this.formatError(lastError)}`);
+      throw new Error(`图片生成接口连续限流，已重试 4 次但没有成功；不会生成本地假图。最后错误：${this.formatError(lastError)}`);
     }
 
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
@@ -655,7 +655,7 @@ export class GenerationService {
     }
 
     if (input.editIntent === "inpaint" && !input.maskImagePath) {
-      throw new Error("局部替换模式需要提供 mask PNG。");
+      throw new Error("局部替换模式需要提供蒙版 PNG。");
     }
   }
 
@@ -684,30 +684,30 @@ export class GenerationService {
     }
 
     const roleLabels: Record<ReferenceImageRole, string> = {
-      subject: "preserve the main subject identity and silhouette",
-      style: "match the visual style, line language, and rendering treatment",
-      composition: "follow the composition and camera arrangement",
-      palette: "reuse the color palette and material mood"
+      subject: "保持主体身份和轮廓",
+      style: "匹配视觉风格、线条语言和渲染方式",
+      composition: "遵循构图和镜头安排",
+      palette: "复用色板和材质气质"
     };
     const intentLabels: Record<GenerateAssetInput["editIntent"], string> = {
-      "preserve-subject": "Preserve the referenced subject while redrawing it as a game-ready asset.",
-      "preserve-style": "Create a new asset that follows the referenced style.",
-      "preserve-composition": "Create a new asset that follows the referenced composition.",
-      "same-series": "Create a same-series variant that belongs with the reference assets.",
-      inpaint: "Edit only the masked region and keep the rest visually stable."
+      "preserve-subject": "保留参考图主体，并重绘成可用于游戏工程的素材。",
+      "preserve-style": "创建一个遵循参考风格的新素材。",
+      "preserve-composition": "创建一个遵循参考构图的新素材。",
+      "same-series": "创建一个与参考素材属于同系列的变体。",
+      inpaint: "只编辑蒙版区域，其余区域保持视觉稳定。"
     };
     const strengthLabels: Record<GenerateAssetInput["referenceStrength"], string> = {
-      low: "Use references loosely.",
-      medium: "Balance prompt instructions with reference preservation.",
-      high: "Use high input fidelity and preserve reference details where possible."
+      low: "宽松参考输入图。",
+      medium: "在提示词要求和参考图保留之间保持平衡。",
+      high: "尽量高保真保留参考图细节。"
     };
 
     const roles = input.referenceImages
-      .map((reference, index) => `Reference ${index + 1} (${reference.role}): ${roleLabels[reference.role]}.`)
+      .map((reference, index) => `第 ${index + 1} 张参考图（${this.referenceRoleLabel(reference.role)}）：${roleLabels[reference.role]}。`)
       .join(" ");
 
     return [
-      "Use the provided input image references.",
+      "使用提供的输入参考图。",
       intentLabels[input.editIntent],
       strengthLabels[input.referenceStrength],
       roles
@@ -747,8 +747,8 @@ export class GenerationService {
     const detailPrompt = this.resolveDetailPrompt(input);
     const projectStyleParts = this.uniqueNonEmpty([project.style, project.styleDescription]);
     const parts = [
-      ...projectStyleParts.map((part) => `Project style: ${part}`),
-      detailPrompt ? `Object-specific details: ${detailPrompt}` : ""
+      ...projectStyleParts.map((part) => `项目风格：${part}`),
+      detailPrompt ? `对象细节：${detailPrompt}` : ""
     ];
     return parts.filter(Boolean).join("\n");
   }
@@ -756,6 +756,40 @@ export class GenerationService {
   private resolveAssetStyle(project: Project, input: GenerateAssetInput): string {
     const detailPrompt = this.resolveDetailPrompt(input);
     return detailPrompt ? `${project.style} | ${detailPrompt}` : project.style;
+  }
+
+  private characterViewLabel(value: string): string {
+    const labels: Record<string, string> = {
+      "side-view": "侧视角",
+      "top-down": "俯视角",
+      "four-direction": "四方向",
+      "eight-direction": "八方向"
+    };
+    return labels[value] ?? value;
+  }
+
+  private referenceRoleLabel(value: ReferenceImageRole): string {
+    const labels: Record<ReferenceImageRole, string> = {
+      subject: "主体参考",
+      style: "风格参考",
+      composition: "构图参考",
+      palette: "色板参考"
+    };
+    return labels[value];
+  }
+
+  private assetTypeLabel(value: GenerateAssetInput["assetType"]): string {
+    const labels: Record<GenerateAssetInput["assetType"], string> = {
+      character: "角色",
+      enemy: "怪物",
+      icon: "图标",
+      item: "道具",
+      ui: "界面元素",
+      tileset: "瓦片集",
+      background: "背景",
+      effect: "特效"
+    };
+    return labels[value];
   }
 
   private resolveDetailPrompt(input: GenerateAssetInput): string {

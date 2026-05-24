@@ -955,6 +955,42 @@ button { color: inherit; }
   line-height: 1.5;
 }
 
+.taskSummary {
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+  max-height: calc(100vh - 210px);
+}
+
+.taskSummary > div,
+.taskSummary > section {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(44, 58, 71, 0.95);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.04), transparent), var(--pit);
+}
+
+.taskSummary span {
+  color: var(--dim);
+  font-family: "Bahnschrift", "Aptos", "Segoe UI", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.taskSummary strong,
+.taskSummary p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .recentList,
 .historyList {
   display: grid;

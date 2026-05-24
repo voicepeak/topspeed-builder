@@ -131,11 +131,11 @@ export class ExportService {
 
 项目：${project.name}
 
-1. 将本目录中的 sprites、sheets、atlas 拖入 Unity Project 面板。
-2. 单张 PNG 设置 Texture Type 为 Sprite (2D and UI)，Pixels Per Unit 建议使用 ${project.defaultResolution.split("x")[0]}。
-3. Sprite Sheet 设置 Sprite Mode 为 Multiple，然后在 Sprite Editor 中按 ${project.defaultResolution} Grid 切分。
-4. Atlas PNG 可放入 Unity Sprite Atlas，JSON metadata 可用于运行时定位帧坐标。
-5. TileSet PNG 可导入 Tile Palette；如使用 Tilemap，请按 tile size 创建 Grid。
+1. 将本目录中的精灵、精灵表和图集目录拖入 Unity 项目面板。
+2. 单张 PNG 的纹理类型设置为精灵，建议每单位像素数使用 ${project.defaultResolution.split("x")[0]}。
+3. 精灵表设置为多精灵模式，然后在精灵编辑器中按 ${project.defaultResolution} 网格切分。
+4. 图集 PNG 可放入 Unity 精灵图集，JSON 元数据可用于运行时定位帧坐标。
+5. 瓦片集 PNG 可导入瓦片调色板；如使用瓦片地图，请按瓦片尺寸创建网格。
 `;
   }
 
@@ -144,11 +144,11 @@ export class ExportService {
 
 项目：${project.name}
 
-1. 将 sprites、sheets、atlas 复制到 Godot res:// 目录。
+1. 将精灵、精灵表和图集目录复制到 Godot 资源目录。
 2. 单张 PNG 可直接用于 Sprite2D。
-3. Sprite Sheet 可在 AnimatedSprite2D / SpriteFrames 中按 ${project.defaultResolution} 切分。
-4. Atlas JSON 保存了每个帧的 x/y/w/h，可用于 AtlasTexture 或自定义加载器。
-5. TileSet PNG 可在 TileSet 编辑器中按 tile size 创建 TileMapLayer。
+3. 精灵表可在 AnimatedSprite2D 或 SpriteFrames 中按 ${project.defaultResolution} 切分。
+4. 图集 JSON 保存了每个帧的坐标和尺寸，可用于 AtlasTexture 或自定义加载器。
+5. 瓦片集 PNG 可在瓦片集编辑器中按瓦片尺寸创建地图层。
 `;
   }
 
@@ -157,10 +157,10 @@ export class ExportService {
 
 项目：${project.name}
 
-1. 打开 tilesets 目录中的 *_tileset.tmx 预览地图。
-2. 新建地图时设置 tile size 为 ${project.defaultResolution}。
-3. 将 *_tileset.png 作为 Tileset 图片导入。
-4. *_tileset.json 包含 tile 类型、坐标和主题信息，可供游戏运行时读取。
+1. 打开瓦片集目录中的预览地图文件。
+2. 新建地图时设置瓦片尺寸为 ${project.defaultResolution}。
+3. 将瓦片集 PNG 作为瓦片集图片导入。
+4. 瓦片集 JSON 包含瓦片类型、坐标和主题信息，可供游戏运行时读取。
 `;
   }
 
@@ -169,7 +169,7 @@ export class ExportService {
 
 项目：${project.name}
 
-目录包含 PNG 单帧、Sprite Sheet、Atlas、TileSet 和 JSON metadata。所有路径均为相对路径，适合直接拷贝到 2D 游戏项目资源目录中。
+目录包含 PNG 单帧、精灵表、图集、瓦片集和 JSON 元数据。所有路径均为相对路径，适合直接拷贝到二维游戏项目资源目录中。
 `;
   }
 }

@@ -2,7 +2,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { app, dialog } from "electron";
 import fs from "fs-extra";
-import type { CreateProjectInput, Project, RecentProject } from "@shared/types";
+import type { CreateProjectInput, Project, RecentProject, StyleTemplate } from "@shared/types";
 import {
   ensureProjectDirectories,
   nowIso,
@@ -40,7 +40,7 @@ export class ProjectService {
     const projectPath = path.join(parentDirectory, sanitizeFileName(input.name));
 
     if (await fs.pathExists(path.join(projectPath, "project.json"))) {
-      throw new Error(`项目已存在: ${projectPath}`);
+      throw new Error(`项目已存在：${projectPath}`);
     }
 
     await ensureProjectDirectories(projectPath);
@@ -48,7 +48,7 @@ export class ProjectService {
     const createdAt = nowIso();
     const project: Project = {
       id: randomUUID(),
-      name: input.name.trim() || "Untitled Project",
+      name: input.name.trim() || "未命名项目",
       path: projectPath,
       gameType: input.gameType,
       style: input.style,
@@ -60,19 +60,19 @@ export class ProjectService {
       styleTemplates: [
         {
           id: randomUUID(),
-          name: "16-bit 像素风",
-          description: "16-bit pixel art, clean silhouette, limited palette, transparent background",
-          lineWeight: "crisp 1px edges",
-          lighting: "top-left soft key light",
-          cameraView: "side-view"
+          name: "十六位像素风",
+          description: "十六位像素美术，轮廓干净，限制色板，透明背景",
+          lineWeight: "清晰一像素边缘",
+          lighting: "左上方柔和主光",
+          cameraView: "侧视角"
         },
         {
           id: randomUUID(),
           name: "暗黑地牢",
-          description: "dark dungeon fantasy, readable shapes, muted metal and stone palette",
-          lineWeight: "bold outline",
-          lighting: "low warm torch light",
-          cameraView: "top-down"
+          description: "暗黑地牢幻想，可读形状，低饱和金属与石材色板",
+          lineWeight: "粗轮廓",
+          lighting: "低照度暖色火把光",
+          cameraView: "俯视角"
         }
       ],
       createdAt,
@@ -87,7 +87,7 @@ export class ProjectService {
   async openProjectDialog(): Promise<Project> {
     const result = await dialog.showOpenDialog({
       title: "打开 AI Sprite Studio 项目",
-      filters: [{ name: "AI Sprite Studio Project", extensions: ["json"] }],
+      filters: [{ name: "AI Sprite Studio 项目", extensions: ["json"] }],
       properties: ["openFile"]
     });
 
@@ -104,22 +104,22 @@ export class ProjectService {
       : path.join(inputPath, "project.json");
 
     if (!(await fs.pathExists(projectJsonPath))) {
-      throw new Error(`未找到 project.json: ${projectJsonPath}`);
+      throw new Error(`未找到项目配置文件：${projectJsonPath}`);
     }
 
     const project = await fs.readJson(projectJsonPath);
     const normalized: Project = {
       id: project.id ?? randomUUID(),
-      name: project.name ?? project.projectName ?? "Untitled Project",
+      name: this.translateLegacyDefault(project.name ?? project.projectName ?? "未命名项目"),
       path: path.dirname(projectJsonPath),
       gameType: project.gameType ?? "RPG",
-      style: project.style ?? "16-bit pixel art",
-      styleDescription: project.styleDescription ?? project.style ?? "",
+      style: this.translateLegacyDefault(project.style ?? "十六位像素风"),
+      styleDescription: this.translateLegacyDefault(project.styleDescription ?? project.style ?? ""),
       defaultResolution: project.defaultResolution ?? "64x64",
       defaultBackground: project.defaultBackground ?? "transparent",
       exportTargets: project.exportTargets ?? ["common"],
       assets: project.assets ?? [],
-      styleTemplates: project.styleTemplates ?? [],
+      styleTemplates: this.normalizeStyleTemplates(project.styleTemplates ?? []),
       createdAt: project.createdAt ?? nowIso(),
       updatedAt: project.updatedAt ?? nowIso()
     };
@@ -162,7 +162,11 @@ export class ProjectService {
 
     for (const item of recent) {
       if (await fs.pathExists(path.join(item.path, "project.json"))) {
-        existing.push(item);
+        existing.push({
+          ...item,
+          name: this.translateLegacyDefault(item.name),
+          style: this.translateLegacyDefault(item.style)
+        });
       }
     }
 
@@ -212,5 +216,32 @@ export class ProjectService {
     ]).slice(0, 12);
 
     await writeJsonFile(this.recentPath, next);
+  }
+
+  private normalizeStyleTemplates(templates: StyleTemplate[]): StyleTemplate[] {
+    return templates.map((template) => ({
+      ...template,
+      name: this.translateLegacyDefault(template.name),
+      description: this.translateLegacyDefault(template.description),
+      lineWeight: template.lineWeight ? this.translateLegacyDefault(template.lineWeight) : template.lineWeight,
+      lighting: template.lighting ? this.translateLegacyDefault(template.lighting) : template.lighting,
+      cameraView: template.cameraView ? this.translateLegacyDefault(template.cameraView) : template.cameraView
+    }));
+  }
+
+  private translateLegacyDefault(value: string): string {
+    const legacy: Record<string, string> = {
+      "Untitled Project": "未命名项目",
+      "16-bit pixel art": "十六位像素风",
+      "16-bit pixel art, clean silhouette, limited palette, transparent background": "十六位像素美术，轮廓干净，限制色板，透明背景",
+      "dark dungeon fantasy, readable shapes, muted metal and stone palette": "暗黑地牢幻想，可读形状，低饱和金属与石材色板",
+      "crisp 1px edges": "清晰一像素边缘",
+      "top-left soft key light": "左上方柔和主光",
+      "side-view": "侧视角",
+      "bold outline": "粗轮廓",
+      "low warm torch light": "低照度暖色火把光",
+      "top-down": "俯视角"
+    };
+    return legacy[value] ?? value;
   }
 }

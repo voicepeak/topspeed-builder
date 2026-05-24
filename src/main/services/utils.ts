@@ -112,7 +112,7 @@ export function safeJoinInside(root: string, ...segments: string[]): string {
   const target = path.resolve(root, ...segments);
 
   if (!target.startsWith(resolvedRoot)) {
-    throw new Error(`Refusing to access path outside project: ${target}`);
+    throw new Error(`拒绝访问项目目录外的路径：${target}`);
   }
 
   return target;
