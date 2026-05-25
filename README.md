@@ -23,7 +23,7 @@
 
 ---
 
-<h1 align="center" id="zh">AI Sprite Studio</h1>
+<h1 align="center" id="zh">topspeed-builder</h1>
 
 <p align="center">
   Electron、React 与 TypeScript 桌面应用，将智能图片生成接入本地二维游戏素材流水线。
