@@ -1034,7 +1034,19 @@ button { color: inherit; }
   line-height: 1.45;
 }
 
-.queueConcurrency,
+.queueConcurrency {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.queueConcurrencyLabel {
+  color: var(--muted);
+  font-size: 11px;
+  cursor: help;
+  border-bottom: 1px dashed var(--steel);
+  margin-right: 2px;
+}
 .queueActions,
 .queueItemActions {
   display: flex;

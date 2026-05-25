@@ -1169,6 +1169,7 @@ function QueuePanel(props: {
           <span>{t("generate.queueSubtitle", { total: props.items.length, queued, done, failed })}</span>
         </div>
         <div className="queueConcurrency">
+          <span className="queueConcurrencyLabel" title={t("generate.queueConcurrency")}>{t("generate.queueConcurrency")}</span>
           {[1, 2, 3].map((value) => (
             <button
               key={value}

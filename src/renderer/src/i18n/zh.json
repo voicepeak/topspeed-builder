@@ -96,6 +96,7 @@
   "generate.callAndProcess": "调用生成并处理",
   "generate.queueTitle": "任务队列",
   "generate.queueSubtitle": "共 {{total}} 个 · 等待 {{queued}} · 完成 {{done}} · 失败 {{failed}}",
+  "generate.queueConcurrency": "并发数量：同时运行多少个生成任务",
   "generate.queueAdd": "加入队列",
   "generate.queueStart": "开始队列",
   "generate.queuePause": "暂停",
