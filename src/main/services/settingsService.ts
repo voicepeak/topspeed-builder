@@ -36,7 +36,7 @@ export class SettingsService {
       defaultProjectRoot: projectRoot,
       defaultExportDirectory: "",
       defaultImageSize: "64x64",
-      defaultGenerationCount: 4,
+      defaultGenerationCount: 1,
       savePromptHistory: true,
       autoTransparent: true,
       autoTrim: true,

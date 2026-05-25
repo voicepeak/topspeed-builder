@@ -1274,6 +1274,25 @@ button { color: inherit; }
   color: var(--muted);
 }
 
+.animationHelp {
+  margin: -2px 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.animationHeader {
+  display: grid;
+  grid-template-columns: 1fr 72px 72px 80px;
+  gap: 8px;
+  align-items: end;
+  color: var(--dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .animationRow {
   display: grid;
   grid-template-columns: 1fr 72px 72px 80px;

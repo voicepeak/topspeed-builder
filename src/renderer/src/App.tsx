@@ -181,7 +181,7 @@ const defaultSettings: AppSettings = {
   defaultProjectRoot: "",
   defaultExportDirectory: "",
   defaultImageSize: "64x64",
-  defaultGenerationCount: 4,
+  defaultGenerationCount: 1,
   savePromptHistory: true,
   autoTransparent: true,
   autoTrim: true,
@@ -1329,20 +1329,36 @@ function AssetCard(props: {
 }
 
 function AnimationEditor(props: { value: AnimationConfig[]; onChange: (value: AnimationConfig[]) => void }): JSX.Element {
+  const { t } = useTranslation();
+
   function update(index: number, patch: Partial<AnimationConfig>): void {
     props.onChange(props.value.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
   }
 
   return (
     <div className="animationEditor">
-      <label>动作帧</label>
+      <label>{t("generate.animFrames")}</label>
+      <p className="animationHelp">{t("generate.animHelp")}</p>
+      <div className="animationHeader" aria-hidden="true">
+        <span>{t("generate.animName")}</span>
+        <span>{t("generate.animFrameCount")}</span>
+        <span>{t("generate.animFps")}</span>
+        <span>{t("generate.animLoop")}</span>
+      </div>
       {props.value.map((animation, index) => (
         <div key={`${animation.name}-${index}`} className="animationRow">
-          <input value={animation.name} onChange={(event) => update(index, { name: event.target.value })} />
+          <input
+            aria-label={t("generate.animName")}
+            title={t("generate.animName")}
+            value={animation.name}
+            onChange={(event) => update(index, { name: event.target.value })}
+          />
           <input
             type="number"
             min={1}
             max={12}
+            aria-label={t("generate.animFrameCountHint")}
+            title={t("generate.animFrameCountHint")}
             value={animation.frames}
             onChange={(event) => update(index, { frames: Number(event.target.value) })}
           />
@@ -1350,18 +1366,23 @@ function AnimationEditor(props: { value: AnimationConfig[]; onChange: (value: An
             type="number"
             min={1}
             max={30}
+            aria-label={t("generate.animFpsHint")}
+            title={t("generate.animFpsHint")}
             value={animation.fps}
             onChange={(event) => update(index, { fps: Number(event.target.value) })}
           />
-          <button onClick={() => update(index, { loop: !animation.loop })}>{animation.loop ? "循环" : "单次"}</button>
+          <button type="button" title={t("generate.animLoopHint")} onClick={() => update(index, { loop: !animation.loop })}>
+            {animation.loop ? t("generate.loop") : t("generate.once")}
+          </button>
         </div>
       ))}
       <button
         className="ghostButton"
+        type="button"
         onClick={() => props.onChange([...props.value, { name: "受击", frames: 4, fps: 8, loop: false }])}
       >
         <Plus size={15} />
-        添加动作
+        {t("generate.addAnim")}
       </button>
     </div>
   );
