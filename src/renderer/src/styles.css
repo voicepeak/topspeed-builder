@@ -1004,6 +1004,121 @@ button { color: inherit; }
   overflow-wrap: anywhere;
 }
 
+.queuePanel {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--steel);
+}
+
+.queueHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.queueHeader strong {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.queueHeader span,
+.queueMessage {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.queueConcurrency,
+.queueActions,
+.queueItemActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.queueConcurrency button,
+.queueItemActions button {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--steel);
+  border-radius: 7px;
+  background: var(--pit);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 11px;
+}
+
+.queueConcurrency button.selected {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: var(--cyan-dim);
+}
+
+.queueList {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.queueItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(44, 58, 71, 0.95);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.04), transparent), var(--pit);
+}
+
+.queueItem.running { border-color: rgba(0, 212, 255, 0.52); }
+.queueItem.done { border-color: rgba(114, 203, 103, 0.42); }
+.queueItem.failed { border-color: rgba(255, 45, 149, 0.5); }
+
+.queueItemMain {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.queueItemMain small,
+.queueItemMain span,
+.queueItemMain em,
+.queueItemMain code,
+.queueItemActions span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.queueItemMain strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.queueItemMain em {
+  color: var(--cyan);
+  font-style: normal;
+}
+
+.queueItemMain code {
+  color: var(--magenta);
+  overflow-wrap: anywhere;
+}
+
+.queueItemActions {
+  align-content: start;
+  justify-content: flex-end;
+}
+
 .recentList,
 .historyList {
   display: grid;

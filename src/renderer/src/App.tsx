@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import i18n, { switchLanguage } from "./i18n";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   Boxes,
@@ -15,6 +15,7 @@ import {
   Image,
   Loader2,
   Package,
+  Pause,
   Play,
   Plus,
   RefreshCw,
@@ -33,6 +34,7 @@ import type {
   EditIntent,
   ExportTarget,
   GenerateAssetInput,
+  GeneratedAssetResult,
   GenerationMode,
   GenerationHistoryRecord,
   ImportedReferenceImage,
@@ -49,6 +51,17 @@ type Page = "home" | "project" | "generate" | "preview" | "export" | "history" |
 type DetailTemplate = { id: string; name: string; prompt: string; meta: string };
 type ReferenceDraft = ReferenceImageInput & Partial<Pick<ImportedReferenceImage, "width" | "height" | "bytes" | "hash" | "thumbnailPath" | "dataUrl">>;
 type SelectOption = string | { value: string; label: string };
+type QueueStatus = "queued" | "running" | "done" | "failed";
+
+interface GenerationQueueItem {
+  id: string;
+  input: GenerateAssetInput;
+  status: QueueStatus;
+  createdAt: string;
+  files?: number;
+  metadataPath?: string;
+  error?: string;
+}
 
 const exportTargets: ExportTarget[] = ["unity", "godot", "tiled", "phaser", "cocos", "common"];
 const exportTargetLabels: Record<ExportTarget, string> = {
@@ -694,6 +707,11 @@ function GeneratePage(props: {
   const [tileTypesText, setTileTypesText] = useState("地板\n墙体\n内角\n外角\n门\n水池\n裂缝\n宝箱");
   const [tileSeamless, setTileSeamless] = useState(true);
   const [makeTiled, setMakeTiled] = useState(true);
+  const [queueItems, setQueueItems] = useState<GenerationQueueItem[]>([]);
+  const [queueConcurrency, setQueueConcurrency] = useState(1);
+  const [queueRunning, setQueueRunning] = useState(false);
+  const [queueMessage, setQueueMessage] = useState("");
+  const queueStopRequested = useRef(false);
 
   useEffect(() => {
     const queued = props.queuedReference;
@@ -754,6 +772,114 @@ function GeneratePage(props: {
   function clearDetailPrompt(): void {
     setDetailPrompt("");
     setSelectedDetailTemplateIds([]);
+  }
+
+  function snapshotInput(source: GenerateAssetInput): GenerateAssetInput {
+    return {
+      ...source,
+      referenceImages: source.referenceImages.map((reference) => ({ ...reference })),
+      exportTargets: [...source.exportTargets],
+      iconItems: [...source.iconItems],
+      animations: source.animations.map((animation) => ({ ...animation })),
+      tileTypes: [...source.tileTypes]
+    };
+  }
+
+  function addCurrentTaskToQueue(): void {
+    const taskInput = snapshotInput(input);
+    setQueueItems((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        input: taskInput,
+        status: "queued",
+        createdAt: new Date().toISOString()
+      }
+    ]);
+    setQueueMessage(t("generate.queueAdded", { name: taskInput.name || t(assetTypeLabel(taskInput.assetType)) }));
+  }
+
+  function patchQueueItem(id: string, patch: Partial<GenerationQueueItem>): void {
+    setQueueItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function removeQueueItem(id: string): void {
+    setQueueItems((current) => current.filter((item) => item.id !== id));
+  }
+
+  function retryQueueItem(id: string): void {
+    patchQueueItem(id, { status: "queued", files: undefined, metadataPath: undefined, error: undefined });
+  }
+
+  function clearFinishedQueueItems(): void {
+    setQueueItems((current) => current.filter((item) => item.status !== "done"));
+  }
+
+  function clearAllQueueItems(): void {
+    if (queueRunning) return;
+    setQueueItems([]);
+    setQueueMessage("");
+  }
+
+  function pauseQueue(): void {
+    queueStopRequested.current = true;
+    setQueueMessage(t("generate.queuePausing"));
+  }
+
+  async function runQueue(): Promise<void> {
+    if (queueRunning) return;
+
+    const pending = queueItems.filter((item) => item.status === "queued");
+    if (pending.length === 0) {
+      setQueueMessage(t("generate.queueEmpty"));
+      return;
+    }
+
+    queueStopRequested.current = false;
+    setQueueRunning(true);
+    setQueueMessage(t("generate.queueRunning", { count: pending.length, concurrency: queueConcurrency }));
+
+    let done = 0;
+    let failed = 0;
+    const nextItems = [...pending];
+    const workers = Array.from({ length: Math.min(queueConcurrency, nextItems.length) }, async () => {
+      while (!queueStopRequested.current) {
+        const item = nextItems.shift();
+        if (!item) return;
+
+        patchQueueItem(item.id, { status: "running", error: undefined, files: undefined, metadataPath: undefined });
+        try {
+          const result: GeneratedAssetResult = await unwrap(window.aiSpriteStudio.generateAssets(item.input));
+          done += 1;
+          patchQueueItem(item.id, {
+            status: "done",
+            files: result.files.length,
+            metadataPath: result.metadataPath
+          });
+        } catch (error) {
+          failed += 1;
+          patchQueueItem(item.id, {
+            status: "failed",
+            error: formatQueueError(error)
+          });
+        }
+      }
+    });
+
+    try {
+      await Promise.all(workers);
+      if (done > 0) {
+        await props.onGenerated();
+      }
+      setQueueMessage(
+        queueStopRequested.current
+          ? t("generate.queuePaused", { done, failed })
+          : t("generate.queueDone", { done, failed })
+      );
+    } finally {
+      queueStopRequested.current = false;
+      setQueueRunning(false);
+    }
   }
 
   const input: GenerateAssetInput = {
@@ -930,6 +1056,21 @@ function GeneratePage(props: {
       <section className="panel">
         <PanelTitle icon={Archive} title={t("generate.execute")} subtitle={t("generate.executeSubtitle")} />
         <TaskSummary input={input} />
+        <QueuePanel
+          items={queueItems}
+          concurrency={queueConcurrency}
+          running={queueRunning}
+          message={queueMessage}
+          canAdd={!(generationMode === "image-to-image" && referenceImages.length === 0)}
+          onAdd={addCurrentTaskToQueue}
+          onRun={runQueue}
+          onPause={pauseQueue}
+          onConcurrencyChange={setQueueConcurrency}
+          onRetry={retryQueueItem}
+          onRemove={removeQueueItem}
+          onClearDone={clearFinishedQueueItems}
+          onClearAll={clearAllQueueItems}
+        />
       </section>
     </div>
   );
@@ -992,6 +1133,105 @@ function TaskSummary(props: { input: GenerateAssetInput }): JSX.Element {
           </p>
         </section>
       )}
+    </div>
+  );
+}
+
+function QueuePanel(props: {
+  items: GenerationQueueItem[];
+  concurrency: number;
+  running: boolean;
+  message: string;
+  canAdd: boolean;
+  onAdd: () => void;
+  onRun: () => void;
+  onPause: () => void;
+  onConcurrencyChange: (value: number) => void;
+  onRetry: (id: string) => void;
+  onRemove: (id: string) => void;
+  onClearDone: () => void;
+  onClearAll: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const queued = props.items.filter((item) => item.status === "queued").length;
+  const done = props.items.filter((item) => item.status === "done").length;
+  const failed = props.items.filter((item) => item.status === "failed").length;
+
+  return (
+    <div className="queuePanel">
+      <div className="queueHeader">
+        <div>
+          <strong>{t("generate.queueTitle")}</strong>
+          <span>{t("generate.queueSubtitle", { total: props.items.length, queued, done, failed })}</span>
+        </div>
+        <div className="queueConcurrency">
+          {[1, 2, 3].map((value) => (
+            <button
+              key={value}
+              type="button"
+              className={props.concurrency === value ? "selected" : ""}
+              disabled={props.running}
+              onClick={() => props.onConcurrencyChange(value)}
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="queueActions">
+        <button type="button" className="ghostButton" disabled={!props.canAdd} onClick={props.onAdd}>
+          <Plus size={15} />
+          {t("generate.queueAdd")}
+        </button>
+        <button type="button" className="ghostButton" disabled={props.running || queued === 0} onClick={props.onRun}>
+          <Play size={15} />
+          {t("generate.queueStart")}
+        </button>
+        <button type="button" className="ghostButton" disabled={!props.running} onClick={props.onPause}>
+          <Pause size={15} />
+          {t("generate.queuePause")}
+        </button>
+        <button type="button" className="ghostButton" disabled={props.running || done === 0} onClick={props.onClearDone}>
+          <Check size={15} />
+          {t("generate.queueClearDone")}
+        </button>
+        <button type="button" className="ghostButton" disabled={props.running || props.items.length === 0} onClick={props.onClearAll}>
+          <Trash2 size={15} />
+          {t("generate.queueClearAll")}
+        </button>
+      </div>
+
+      {props.message && <div className="queueMessage">{props.message}</div>}
+
+      <div className="queueList">
+        {props.items.length === 0 && <EmptyState text={t("generate.queueEmptyState")} />}
+        {props.items.map((item, index) => (
+          <article key={item.id} className={`queueItem ${item.status}`}>
+            <div className="queueItemMain">
+              <small>{String(index + 1).padStart(2, "0")} · {t("assetType." + item.input.assetType)}</small>
+              <strong>{item.input.name || "—"}</strong>
+              <span>{item.input.size} · {item.input.count} · {item.input.generationMode === "image-to-image" ? t("mode.image-to-image") : t("mode.text-to-image")}</span>
+              {item.status === "done" && <em>{t("generate.queueResult", { count: item.files ?? 0 })}</em>}
+              {item.error && <code>{item.error}</code>}
+            </div>
+            <div className="queueItemActions">
+              <span>{t("generate.queueStatus." + item.status)}</span>
+              {item.status === "running" && <Loader2 size={14} className="spin" />}
+              {item.status === "failed" && (
+                <button type="button" onClick={() => props.onRetry(item.id)}>
+                  <RefreshCw size={14} />
+                </button>
+              )}
+              {!props.running && item.status !== "running" && (
+                <button type="button" onClick={() => props.onRemove(item.id)}>
+                  <Trash2 size={14} />
+                </button>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1595,6 +1835,11 @@ function providerLabel(provider: AppSettings["aiProvider"]): string {
   return found ? selectOptionLabel(found) : provider;
 }
 
+function assetTypeLabel(assetType: AssetType): string {
+  const found = assetTypes.find((option) => option.value === assetType);
+  return found ? found.label : assetType;
+}
+
 function gameTypeLabel(gameType: string): string {
   const found = gameTypeOptions.find((option) => selectOptionValue(option) === gameType);
   return found ? selectOptionLabel(found) : gameType;
@@ -1609,6 +1854,12 @@ function resolveFile(projectPath: string, filePath: string): string {
     return filePath;
   }
   return `${projectPath}\\${filePath.replace(/\//g, "\\")}`;
+}
+
+function formatQueueError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.replace(/\s+/g, " ").trim();
+  return normalized.length > 180 ? `${normalized.slice(0, 180)}...` : normalized;
 }
 
 async function unwrap<T>(request: Promise<IpcResponse<T>>): Promise<T> {
