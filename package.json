@@ -22,8 +22,10 @@
       "output": "release"
     },
     "files": [
-      "out/**/*",
-      "!node_modules/**/*"
+      "out/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/sharp/**/*"
     ],
     "win": {
       "target": [
