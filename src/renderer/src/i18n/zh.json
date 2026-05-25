@@ -92,7 +92,7 @@
   "generate.makeTiled": "生成 Tiled TMX",
   "generate.addAnim": "添加动作",
   "generate.execute": "将执行的任务",
-  "generate.executeSubtitle": "提交后由 Electron 主进程执行",
+  "generate.executeSubtitle": "加入队列后由 Electron 主进程执行",
   "generate.callAndProcess": "调用生成并处理",
   "generate.queueTitle": "任务队列",
   "generate.queueSubtitle": "共 {{total}} 个 · 等待 {{queued}} · 完成 {{done}} · 失败 {{failed}}",

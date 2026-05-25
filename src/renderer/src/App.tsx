@@ -212,6 +212,11 @@ function App(): JSX.Element {
   const [queuedReference, setQueuedReference] = useState<ReferenceDraft | null>(null);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [queueItems, setQueueItems] = useState<GenerationQueueItem[]>([]);
+  const [queueConcurrency, setQueueConcurrency] = useState(1);
+  const [queueRunning, setQueueRunning] = useState(false);
+  const [queueMessage, setQueueMessage] = useState("");
+  const queueStopRequested = useRef(false);
 
   useEffect(() => {
     void refreshInitialState();
@@ -288,6 +293,115 @@ function App(): JSX.Element {
       return null;
     } finally {
       setBusy("");
+    }
+  }
+
+  async function refreshGeneratedProjectData(projectPath = project?.path): Promise<void> {
+    if (!projectPath) return;
+    await refreshProject(projectPath);
+    await refreshHistory(projectPath);
+  }
+
+  function addQueueItem(input: GenerateAssetInput, displayName: string): void {
+    const taskInput = snapshotGenerateInput(input);
+    setQueueItems((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        input: taskInput,
+        status: "queued",
+        createdAt: new Date().toISOString()
+      }
+    ]);
+    setQueueMessage(t("generate.queueAdded", { name: displayName || taskInput.name || t(assetTypeLabel(taskInput.assetType)) }));
+  }
+
+  function patchQueueItem(id: string, patch: Partial<GenerationQueueItem>): void {
+    setQueueItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+  }
+
+  function removeQueueItem(id: string): void {
+    setQueueItems((current) => current.filter((item) => item.id !== id));
+  }
+
+  function retryQueueItem(id: string): void {
+    patchQueueItem(id, { status: "queued", files: undefined, metadataPath: undefined, error: undefined });
+  }
+
+  function clearFinishedQueueItems(): void {
+    setQueueItems((current) => current.filter((item) => item.status !== "done"));
+  }
+
+  function clearAllQueueItems(): void {
+    if (queueRunning) return;
+    setQueueItems([]);
+    setQueueMessage("");
+  }
+
+  function pauseQueue(): void {
+    queueStopRequested.current = true;
+    setQueueMessage(t("generate.queuePausing"));
+  }
+
+  async function runQueue(): Promise<void> {
+    if (queueRunning) return;
+    if (!window.aiSpriteStudio) {
+      setQueueMessage(t("message.browserMode"));
+      return;
+    }
+
+    const pending = queueItems.filter((item) => item.status === "queued");
+    if (pending.length === 0) {
+      setQueueMessage(t("generate.queueEmpty"));
+      return;
+    }
+
+    queueStopRequested.current = false;
+    setQueueRunning(true);
+    setQueueMessage(t("generate.queueRunning", { count: pending.length, concurrency: queueConcurrency }));
+
+    let done = 0;
+    let failed = 0;
+    const touchedProjectPaths = new Set<string>();
+    const nextItems = [...pending];
+    const workers = Array.from({ length: Math.min(Math.max(queueConcurrency, 1), nextItems.length) }, async () => {
+      while (!queueStopRequested.current) {
+        const item = nextItems.shift();
+        if (!item) return;
+
+        patchQueueItem(item.id, { status: "running", error: undefined, files: undefined, metadataPath: undefined });
+        try {
+          const result: GeneratedAssetResult = await unwrap(window.aiSpriteStudio.generateAssets(item.input));
+          done += 1;
+          touchedProjectPaths.add(item.input.projectPath);
+          patchQueueItem(item.id, {
+            status: "done",
+            files: result.files.length,
+            metadataPath: result.metadataPath
+          });
+        } catch (error) {
+          failed += 1;
+          patchQueueItem(item.id, {
+            status: "failed",
+            error: formatQueueError(error)
+          });
+        }
+      }
+    });
+
+    try {
+      await Promise.all(workers);
+      if (done > 0 && project?.path && touchedProjectPaths.has(project.path)) {
+        await refreshGeneratedProjectData(project.path);
+      }
+      setQueueMessage(
+        queueStopRequested.current
+          ? t("generate.queuePaused", { done, failed })
+          : t("generate.queueDone", { done, failed })
+      );
+    } finally {
+      queueStopRequested.current = false;
+      setQueueRunning(false);
     }
   }
 
@@ -382,12 +496,19 @@ function App(): JSX.Element {
             settings={settings}
             runTask={runTask}
             queuedReference={queuedReference}
+            queueItems={queueItems}
+            queueConcurrency={queueConcurrency}
+            queueRunning={queueRunning}
+            queueMessage={queueMessage}
             onQueuedReferenceConsumed={() => setQueuedReference(null)}
-            onGenerated={async () => {
-              await refreshProject(project.path);
-              await refreshHistory(project.path);
-              setPage("preview");
-            }}
+            onQueueAdd={addQueueItem}
+            onQueueRun={runQueue}
+            onQueuePause={pauseQueue}
+            onQueueConcurrencyChange={setQueueConcurrency}
+            onQueueRetry={retryQueueItem}
+            onQueueRemove={removeQueueItem}
+            onQueueClearDone={clearFinishedQueueItems}
+            onQueueClearAll={clearAllQueueItems}
           />
         )}
         {page === "preview" && project && (
@@ -677,8 +798,19 @@ function GeneratePage(props: {
   settings: AppSettings;
   runTask: <T>(label: string, task: () => Promise<T>, success?: (result: T) => string) => Promise<T | null>;
   queuedReference: ReferenceDraft | null;
+  queueItems: GenerationQueueItem[];
+  queueConcurrency: number;
+  queueRunning: boolean;
+  queueMessage: string;
   onQueuedReferenceConsumed: () => void;
-  onGenerated: () => Promise<void>;
+  onQueueAdd: (input: GenerateAssetInput, displayName: string) => void;
+  onQueueRun: () => void;
+  onQueuePause: () => void;
+  onQueueConcurrencyChange: (value: number) => void;
+  onQueueRetry: (id: string) => void;
+  onQueueRemove: (id: string) => void;
+  onQueueClearDone: () => void;
+  onQueueClearAll: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
   const defaultPresets = useMemo(() => presetsFor("icon", props.project.defaultResolution), []);
@@ -707,11 +839,6 @@ function GeneratePage(props: {
   const [tileTypesText, setTileTypesText] = useState("地板\n墙体\n内角\n外角\n门\n水池\n裂缝\n宝箱");
   const [tileSeamless, setTileSeamless] = useState(true);
   const [makeTiled, setMakeTiled] = useState(true);
-  const [queueItems, setQueueItems] = useState<GenerationQueueItem[]>([]);
-  const [queueConcurrency, setQueueConcurrency] = useState(1);
-  const [queueRunning, setQueueRunning] = useState(false);
-  const [queueMessage, setQueueMessage] = useState("");
-  const queueStopRequested = useRef(false);
 
   useEffect(() => {
     const queued = props.queuedReference;
@@ -772,114 +899,6 @@ function GeneratePage(props: {
   function clearDetailPrompt(): void {
     setDetailPrompt("");
     setSelectedDetailTemplateIds([]);
-  }
-
-  function snapshotInput(source: GenerateAssetInput): GenerateAssetInput {
-    return {
-      ...source,
-      referenceImages: source.referenceImages.map((reference) => ({ ...reference })),
-      exportTargets: [...source.exportTargets],
-      iconItems: [...source.iconItems],
-      animations: source.animations.map((animation) => ({ ...animation })),
-      tileTypes: [...source.tileTypes]
-    };
-  }
-
-  function addCurrentTaskToQueue(): void {
-    const taskInput = snapshotInput(input);
-    setQueueItems((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        input: taskInput,
-        status: "queued",
-        createdAt: new Date().toISOString()
-      }
-    ]);
-    setQueueMessage(t("generate.queueAdded", { name: taskInput.name || t(assetTypeLabel(taskInput.assetType)) }));
-  }
-
-  function patchQueueItem(id: string, patch: Partial<GenerationQueueItem>): void {
-    setQueueItems((current) => current.map((item) => (item.id === id ? { ...item, ...patch } : item)));
-  }
-
-  function removeQueueItem(id: string): void {
-    setQueueItems((current) => current.filter((item) => item.id !== id));
-  }
-
-  function retryQueueItem(id: string): void {
-    patchQueueItem(id, { status: "queued", files: undefined, metadataPath: undefined, error: undefined });
-  }
-
-  function clearFinishedQueueItems(): void {
-    setQueueItems((current) => current.filter((item) => item.status !== "done"));
-  }
-
-  function clearAllQueueItems(): void {
-    if (queueRunning) return;
-    setQueueItems([]);
-    setQueueMessage("");
-  }
-
-  function pauseQueue(): void {
-    queueStopRequested.current = true;
-    setQueueMessage(t("generate.queuePausing"));
-  }
-
-  async function runQueue(): Promise<void> {
-    if (queueRunning) return;
-
-    const pending = queueItems.filter((item) => item.status === "queued");
-    if (pending.length === 0) {
-      setQueueMessage(t("generate.queueEmpty"));
-      return;
-    }
-
-    queueStopRequested.current = false;
-    setQueueRunning(true);
-    setQueueMessage(t("generate.queueRunning", { count: pending.length, concurrency: queueConcurrency }));
-
-    let done = 0;
-    let failed = 0;
-    const nextItems = [...pending];
-    const workers = Array.from({ length: Math.min(queueConcurrency, nextItems.length) }, async () => {
-      while (!queueStopRequested.current) {
-        const item = nextItems.shift();
-        if (!item) return;
-
-        patchQueueItem(item.id, { status: "running", error: undefined, files: undefined, metadataPath: undefined });
-        try {
-          const result: GeneratedAssetResult = await unwrap(window.aiSpriteStudio.generateAssets(item.input));
-          done += 1;
-          patchQueueItem(item.id, {
-            status: "done",
-            files: result.files.length,
-            metadataPath: result.metadataPath
-          });
-        } catch (error) {
-          failed += 1;
-          patchQueueItem(item.id, {
-            status: "failed",
-            error: formatQueueError(error)
-          });
-        }
-      }
-    });
-
-    try {
-      await Promise.all(workers);
-      if (done > 0) {
-        await props.onGenerated();
-      }
-      setQueueMessage(
-        queueStopRequested.current
-          ? t("generate.queuePaused", { done, failed })
-          : t("generate.queueDone", { done, failed })
-      );
-    } finally {
-      queueStopRequested.current = false;
-      setQueueRunning(false);
-    }
   }
 
   const input: GenerateAssetInput = {
@@ -1036,40 +1055,25 @@ function GeneratePage(props: {
           </div>
         )}
 
-        <button
-          className="primaryButton"
-          disabled={generationMode === "image-to-image" && referenceImages.length === 0}
-          onClick={async () => {
-            const result = await props.runTask(
-              t("busy.generateAssets"),
-              () => unwrap(window.aiSpriteStudio.generateAssets(input)),
-              (generated) => t("message.generated", { count: generated.files.length, metadata: generated.metadataPath ?? "—" })
-            );
-            if (result) await props.onGenerated();
-          }}
-        >
-          <Sparkles size={18} />
-          {t("generate.callAndProcess")}
-        </button>
       </section>
 
       <section className="panel">
         <PanelTitle icon={Archive} title={t("generate.execute")} subtitle={t("generate.executeSubtitle")} />
         <TaskSummary input={input} />
         <QueuePanel
-          items={queueItems}
-          concurrency={queueConcurrency}
-          running={queueRunning}
-          message={queueMessage}
+          items={props.queueItems}
+          concurrency={props.queueConcurrency}
+          running={props.queueRunning}
+          message={props.queueMessage}
           canAdd={!(generationMode === "image-to-image" && referenceImages.length === 0)}
-          onAdd={addCurrentTaskToQueue}
-          onRun={runQueue}
-          onPause={pauseQueue}
-          onConcurrencyChange={setQueueConcurrency}
-          onRetry={retryQueueItem}
-          onRemove={removeQueueItem}
-          onClearDone={clearFinishedQueueItems}
-          onClearAll={clearAllQueueItems}
+          onAdd={() => props.onQueueAdd(input, input.name || t(assetTypeLabel(input.assetType)))}
+          onRun={props.onQueueRun}
+          onPause={props.onQueuePause}
+          onConcurrencyChange={props.onQueueConcurrencyChange}
+          onRetry={props.onQueueRetry}
+          onRemove={props.onQueueRemove}
+          onClearDone={props.onQueueClearDone}
+          onClearAll={props.onQueueClearAll}
         />
       </section>
     </div>
@@ -1811,6 +1815,17 @@ function splitLines(value: string): string[] {
     .split(/[\n,，]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function snapshotGenerateInput(source: GenerateAssetInput): GenerateAssetInput {
+  return {
+    ...source,
+    referenceImages: source.referenceImages.map((reference) => ({ ...reference })),
+    exportTargets: [...source.exportTargets],
+    iconItems: [...source.iconItems],
+    animations: source.animations.map((animation) => ({ ...animation })),
+    tileTypes: [...source.tileTypes]
+  };
 }
 
 function toReferenceInput(image: ReferenceDraft): ReferenceImageInput {
