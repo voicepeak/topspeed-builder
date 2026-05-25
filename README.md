@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/ai--sprite--studio-v0.1.0-00d4ff?style=flat-square&labelColor=0b0e11">
-    <img src="https://img.shields.io/badge/ai--sprite--studio-v0.1.0-00d4ff?style=flat-square&labelColor=0b0e11" alt="版本">
+    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/topspeed--builder-v1.0.0-00d4ff?style=flat-square&labelColor=0b0e11">
+    <img src="https://img.shields.io/badge/topspeed--builder-v1.0.0-00d4ff?style=flat-square&labelColor=0b0e11" alt="版本">
   </picture>
 </p>
 
@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img src="./docs/readme-hero.svg" alt="AI Sprite Studio 动态流水线横幅" width="100%" />
+  <img src="./docs/readme-hero.svg" alt="Topspeed Builder 动态流水线横幅" width="100%" />
 </p>
 
 ---
@@ -143,7 +143,7 @@ MIT
 
 ---
 
-<h1 align="center" id="en">AI Sprite Studio</h1>
+<h1 align="center" id="en">Topspeed Builder</h1>
 
 <p align="center">
   Electron + React + TypeScript desktop app — AI image generation meets local 2D game asset pipeline.

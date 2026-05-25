@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Topspeed Builder — AI Sprite Studio</title>
+<title>Topspeed Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
@@ -641,7 +641,7 @@ tbody td:first-child { font-weight: 500; color: var(--cyan-text); }
 
   <div class="hero-badge">
     <span class="hero-badge-dot"></span>
-    v0.1.0 · MIT
+    v1.0.0 · MIT
   </div>
 
   <h1>Topspeed<br><span class="highlight">Builder</span></h1>
@@ -830,7 +830,7 @@ tbody td:first-child { font-weight: 500; color: var(--cyan-text); }
 <code><span class="code-comment">// src/preload/index.ts — contextBridge 示例</span>
 <span class="code-keyword">import</span> { contextBridge, ipcRenderer } <span class="code-keyword">from</span> <span class="code-string">"electron"</span>;
 
-contextBridge.exposeInMainWorld(<span class="code-string">"aiSpriteStudio"</span>, {
+contextBridge.exposeInMainWorld(<span class="code-string">"topspeedBuilder"</span>, {
   createProject:     (input) => ipcRenderer.invoke(<span class="code-string">"project:create"</span>, input),
   generateAsset:     (input) => ipcRenderer.invoke(<span class="code-string">"asset:generate"</span>, input),
   openProject:       (path)  => ipcRenderer.invoke(<span class="code-string">"project:open"</span>, path),
@@ -1053,7 +1053,7 @@ npm run build
 <footer class="footer">
   <p>
     <a href="https://github.com/voicepeak/topspeed-builder">Topspeed Builder</a>
-    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; v0.1.0
+    &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; v1.0.0
   </p>
 </footer>
 

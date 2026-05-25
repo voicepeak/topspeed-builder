@@ -251,14 +251,14 @@ function App(): JSX.Element {
 
   async function refreshInitialState(): Promise<void> {
     try {
-      if (!window.aiSpriteStudio) {
+      if (!window.topspeedBuilder) {
         setMessage("浏览器预览模式：桌面通信未连接；桌面应用中会启用本地文件、智能生成和导出服务。");
         return;
       }
 
       const [nextSettings, nextRecent] = await Promise.all([
-        unwrap(window.aiSpriteStudio.getSettings()),
-        unwrap(window.aiSpriteStudio.getRecentProjects())
+        unwrap(window.topspeedBuilder.getSettings()),
+        unwrap(window.topspeedBuilder.getRecentProjects())
       ]);
       setSettings(nextSettings);
       setRecentProjects(nextRecent);
@@ -268,16 +268,16 @@ function App(): JSX.Element {
   }
 
   async function refreshProject(projectPath = project?.path): Promise<Project | null> {
-    if (!window.aiSpriteStudio) return null;
+    if (!window.topspeedBuilder) return null;
     if (!projectPath) return null;
-    const nextProject = await unwrap(window.aiSpriteStudio.openProjectPath(projectPath));
+    const nextProject = await unwrap(window.topspeedBuilder.openProjectPath(projectPath));
     setProject(nextProject);
     return nextProject;
   }
 
   async function refreshHistory(projectPath: string): Promise<void> {
-    if (!window.aiSpriteStudio) return;
-    const nextHistory = await unwrap(window.aiSpriteStudio.getHistory(projectPath));
+    if (!window.topspeedBuilder) return;
+    const nextHistory = await unwrap(window.topspeedBuilder.getHistory(projectPath));
     setHistory(nextHistory);
   }
 
@@ -345,7 +345,7 @@ function App(): JSX.Element {
 
   async function runQueue(): Promise<void> {
     if (queueRunning) return;
-    if (!window.aiSpriteStudio) {
+    if (!window.topspeedBuilder) {
       setQueueMessage(t("message.browserMode"));
       return;
     }
@@ -371,7 +371,7 @@ function App(): JSX.Element {
 
         patchQueueItem(item.id, { status: "running", error: undefined, files: undefined, metadataPath: undefined });
         try {
-          const result: GeneratedAssetResult = await unwrap(window.aiSpriteStudio.generateAssets(item.input));
+          const result: GeneratedAssetResult = await unwrap(window.topspeedBuilder.generateAssets(item.input));
           done += 1;
           touchedProjectPaths.add(item.input.projectPath);
           patchQueueItem(item.id, {
@@ -576,7 +576,7 @@ function HomePage(props: {
           <button
             className="ghostButton"
             onClick={async () => {
-              const directory = await props.runTask(t("field.chooseDir"), () => unwrap(window.aiSpriteStudio.chooseProjectRoot()));
+              const directory = await props.runTask(t("field.chooseDir"), () => unwrap(window.topspeedBuilder.chooseProjectRoot()));
               if (directory) setInput({ ...input, parentDirectory: directory });
             }}
           >
@@ -603,7 +603,7 @@ function HomePage(props: {
           onClick={async () => {
             const project = await props.runTask(
               t("busy.createProject"),
-              () => unwrap(window.aiSpriteStudio.createProject(input)),
+              () => unwrap(window.topspeedBuilder.createProject(input)),
               (created) => `${t("message.created")}: ${created.path}`
             );
             if (project) {
@@ -623,7 +623,7 @@ function HomePage(props: {
         <button
           className="primaryButton secondary"
           onClick={async () => {
-            const project = await props.runTask(t("busy.openProject"), () => unwrap(window.aiSpriteStudio.openProjectDialog()));
+            const project = await props.runTask(t("busy.openProject"), () => unwrap(window.topspeedBuilder.openProjectDialog()));
             if (project) {
               props.setProject(project);
               props.setPage("generate");
@@ -647,7 +647,7 @@ function HomePage(props: {
                 <button
                   title={t("home.open.open")}
                   onClick={async () => {
-                    const project = await props.runTask(t("busy.openRecent"), () => unwrap(window.aiSpriteStudio.openProjectPath(item.path)));
+                    const project = await props.runTask(t("busy.openRecent"), () => unwrap(window.topspeedBuilder.openProjectPath(item.path)));
                     if (project) {
                       props.setProject(project);
                       props.setPage("generate");
@@ -659,7 +659,7 @@ function HomePage(props: {
                 <button
                   title={t("home.open.remove")}
                   onClick={async () => {
-                    await props.runTask(t("busy.removeRecent"), () => unwrap(window.aiSpriteStudio.removeRecentProject(item.path)));
+                    await props.runTask(t("busy.removeRecent"), () => unwrap(window.topspeedBuilder.removeRecentProject(item.path)));
                     await props.reloadRecent();
                   }}
                 >
@@ -782,7 +782,7 @@ function ProjectPage(props: {
       <button
         className="primaryButton"
         onClick={async () => {
-          const saved = await props.runTask(t("busy.saveProject"), () => unwrap(window.aiSpriteStudio.saveProject(draft)));
+          const saved = await props.runTask(t("busy.saveProject"), () => unwrap(window.topspeedBuilder.saveProject(draft)));
           if (saved) props.onSaved(saved);
         }}
       >
@@ -853,8 +853,8 @@ function GeneratePage(props: {
       return [...current, queued].slice(0, 4);
     });
 
-    if (window.aiSpriteStudio) {
-      window.aiSpriteStudio.readImageDataUrl(props.project.path, queued.path).then((result) => {
+    if (window.topspeedBuilder) {
+      window.topspeedBuilder.readImageDataUrl(props.project.path, queued.path).then((result) => {
         if (!result.ok || !result.data) return;
         setReferenceImages((current) =>
           current.map((item) => (item.path === queued.path ? { ...item, dataUrl: result.data } : item))
@@ -1257,7 +1257,7 @@ function ReferenceImagePanel(props: {
   async function importReferences(): Promise<void> {
     const imported = await props.runTask(
       t("busy.importRef"),
-      () => unwrap(window.aiSpriteStudio.chooseReferenceImages(props.project.path)),
+      () => unwrap(window.topspeedBuilder.chooseReferenceImages(props.project.path)),
       (result) => t("message.importedRef", { count: result.length })
     );
     if (!imported) return;
@@ -1275,7 +1275,7 @@ function ReferenceImagePanel(props: {
   async function importMask(): Promise<void> {
     const imported = await props.runTask(
       t("busy.importMask"),
-      () => unwrap(window.aiSpriteStudio.chooseMaskImage(props.project.path)),
+      () => unwrap(window.topspeedBuilder.chooseMaskImage(props.project.path)),
       () => t("message.maskImported")
     );
     if (imported) props.onMaskChange(imported);
@@ -1422,11 +1422,11 @@ function ExportPage(props: {
         onClick={async () => {
           const result = await props.runTask(
             t("busy.exportAssets"),
-            () => unwrap(window.aiSpriteStudio.exportProject({ projectPath: props.project.path, targets, includeZip })),
+            () => unwrap(window.topspeedBuilder.exportProject({ projectPath: props.project.path, targets, includeZip })),
             (exported) => t("export.done", { count: exported.files.length, dir: exported.exportRoot })
           );
           if (result) {
-            await window.aiSpriteStudio.openPath(result.exportRoot);
+            await window.topspeedBuilder.openPath(result.exportRoot);
           }
         }}
       >
@@ -1510,7 +1510,7 @@ function SettingsPage(props: {
       <button
         className="primaryButton"
         onClick={async () => {
-          const saved = await props.runTask(t("settings.save"), () => unwrap(window.aiSpriteStudio.saveSettings(draft)));
+          const saved = await props.runTask(t("settings.save"), () => unwrap(window.topspeedBuilder.saveSettings(draft)));
           if (saved) props.onSaved(saved);
         }}
       >
@@ -1535,7 +1535,7 @@ function AssetCard(props: {
   useEffect(() => {
     let alive = true;
     if (pngFile) {
-      window.aiSpriteStudio.readImageDataUrl(props.project.path, pngFile).then((result) => {
+      window.topspeedBuilder.readImageDataUrl(props.project.path, pngFile).then((result) => {
         if (alive && result.ok && result.data) setDataUrl(result.data);
       });
     }
@@ -1577,7 +1577,7 @@ function AssetCard(props: {
           onClick={() => {
             const file = props.asset.metadataPath ?? pngFile;
             if (file) {
-              void props.runTask(t("busy.locateFile"), () => unwrap(window.aiSpriteStudio.showItemInFolder(resolveFile(props.project.path, file))));
+              void props.runTask(t("busy.locateFile"), () => unwrap(window.topspeedBuilder.showItemInFolder(resolveFile(props.project.path, file))));
             }
           }}
         >
@@ -1591,7 +1591,7 @@ function AssetCard(props: {
             if (!window.confirm(t("preview.deleteConfirm", { name: props.asset.name }))) return;
             const result = await props.runTask(
               t("busy.deleteAsset"),
-              () => unwrap(window.aiSpriteStudio.deleteAsset(props.project.path, props.asset.id)),
+              () => unwrap(window.topspeedBuilder.deleteAsset(props.project.path, props.asset.id)),
               () => t("preview.deleteDone")
             );
             if (result && props.onDelete) await props.onDelete();

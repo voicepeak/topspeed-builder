@@ -86,8 +86,8 @@ export class ProjectService {
 
   async openProjectDialog(): Promise<Project> {
     const result = await dialog.showOpenDialog({
-      title: "打开 AI Sprite Studio 项目",
-      filters: [{ name: "AI Sprite Studio 项目", extensions: ["json"] }],
+      title: "打开 Topspeed Builder 项目",
+      filters: [{ name: "Topspeed Builder 项目", extensions: ["json"] }],
       properties: ["openFile"]
     });
 

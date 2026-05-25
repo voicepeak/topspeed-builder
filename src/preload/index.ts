@@ -7,7 +7,7 @@ import type {
   Project
 } from "@shared/types";
 
-contextBridge.exposeInMainWorld("aiSpriteStudio", {
+contextBridge.exposeInMainWorld("topspeedBuilder", {
   createProject: (input: CreateProjectInput) => ipcRenderer.invoke("project:create", input),
   chooseProjectRoot: () => ipcRenderer.invoke("project:chooseRoot"),
   openProjectDialog: () => ipcRenderer.invoke("project:openDialog"),

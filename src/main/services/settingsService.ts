@@ -25,7 +25,7 @@ export class SettingsService {
   }
 
   private async getDefaultSettings(): Promise<AppSettings> {
-    const projectRoot = path.join(app.getPath("documents"), "AI Sprite Studio Projects");
+    const projectRoot = path.join(app.getPath("documents"), "Topspeed Builder Projects");
     await fs.ensureDir(projectRoot);
 
     return {

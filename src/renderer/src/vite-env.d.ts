@@ -16,7 +16,7 @@ import type {
 
 declare global {
   interface Window {
-    aiSpriteStudio: {
+    topspeedBuilder: {
       createProject(input: CreateProjectInput): Promise<IpcResponse<Project>>;
       chooseProjectRoot(): Promise<IpcResponse<string>>;
       openProjectDialog(): Promise<IpcResponse<Project>>;

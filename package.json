@@ -1,9 +1,9 @@
 {
-  "name": "ai-sprite-studio",
-  "version": "0.1.0",
-  "description": "AI Sprite Studio - local desktop workflow for generating and exporting 2D game assets.",
+  "name": "topspeed-builder",
+  "version": "1.0.0",
+  "description": "Topspeed Builder - local desktop workflow for generating and exporting 2D game assets.",
   "main": "out/main/index.js",
-  "author": "AI Sprite Studio",
+  "author": "Topspeed Builder",
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
