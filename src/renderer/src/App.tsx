@@ -829,7 +829,7 @@ function GeneratePage(props: {
   const [count, setCount] = useState(props.settings.defaultGenerationCount);
   const [transparentBackground, setTransparentBackground] = useState(defaultPresets.transparentBackground);
   const [targets, setTargets] = useState<ExportTarget[]>(props.project.exportTargets);
-  const [iconItemsText, setIconItemsText] = useState("药水\n金币\n钥匙\n短剑\n盾牌\n卷轴\n魔法石");
+
   const [makeAtlas, setMakeAtlas] = useState(props.settings.autoPackAtlas);
   const [characterView, setCharacterView] = useState("side-view");
   const [animations, setAnimations] = useState<AnimationConfig[]>(defaultAnimations);
@@ -916,7 +916,7 @@ function GeneratePage(props: {
     count,
     transparentBackground,
     exportTargets: targets,
-    iconItems: splitLines(iconItemsText),
+    iconItems: [],
     makeAtlas,
     characterView,
     animations,
@@ -1025,7 +1025,6 @@ function GeneratePage(props: {
 
         {(assetType === "icon" || assetType === "item" || assetType === "ui") && (
           <div className="subPanel">
-            <TextArea label={t("generate.batchList")} value={iconItemsText} onChange={setIconItemsText} />
             <Toggle label={t("generate.makeAtlas")} value={makeAtlas} onChange={setMakeAtlas} />
           </div>
         )}
