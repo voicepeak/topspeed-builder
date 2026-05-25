@@ -131,6 +131,7 @@ references/
 |------|------|
 | 桌面壳 | Electron 33 |
 | 前端 | React 18、TypeScript、Lucide React |
+| 国际化 | i18next、react-i18next |
 | 构建 | Vite 5、electron-vite |
 | 图像处理 | Sharp |
 | 打包导出 | JSZip |
@@ -151,6 +152,11 @@ MIT
 ## Overview
 
 Built for indie developers, art prototypers, and toolchain validators. Create local projects with game type, art style, and export targets; batch-generate icons, items, character poses, enemies, backgrounds, effects, and TileSets. All data and keys stay local — zero cloud dependency.
+
+## Language Boundary
+
+- UI and documentation default to Chinese; English content is kept only in the standalone English section, code identifiers, file formats, model names, API paths, and third-party product names.
+- User-facing prompts, buttons, forms, status messages, errors, and export notes are in Chinese.
 
 ## Features
 
@@ -244,6 +250,7 @@ references/
 |-------|-----------|
 | Desktop Shell | Electron 33 |
 | Frontend | React 18, TypeScript, Lucide React |
+| i18n | i18next, react-i18next |
 | Build | Vite 5, electron-vite |
 | Image Processing | Sharp |
 | Archive | JSZip |
