@@ -221,7 +221,7 @@ export class GenerationService {
         name: versionCount > 1 ? `${input.name} ${versionLabel}` : input.name,
         description: input.description,
         style: this.buildStylePrompt(project, input),
-        size: sheetSizeText,
+        size: `${columns}x${rows} action sheet; each exported frame ${input.size}`,
         transparentBackground: input.transparentBackground,
         extra: [
           this.buildCharacterSheetGuidance(input, animations, columns, rows),
@@ -247,21 +247,22 @@ export class GenerationService {
           for (let frameIndex = 0; frameIndex < animation.frames; frameIndex += 1) {
             const fileName = `character_${assetName}_${versionLabel}_${animation.name}_${String(frameIndex).padStart(2, "0")}.png`;
             const processedPath = path.join(versionDirectory, fileName);
-            const frameBuffer = await sharp(normalizedSheet)
-              .extract({
-                left: frameIndex * frameSize.width,
-                top: rowIndex * frameSize.height,
-                width: frameSize.width,
-                height: frameSize.height
-              })
-              .png()
-              .toBuffer();
+            const frameBuffer = await this.extractCharacterFrame(image, {
+              columns,
+              rows,
+              rowIndex,
+              frameIndex,
+              frameSize
+            });
 
             await this.imageService.saveProcessedImage(frameBuffer, processedPath, {
               width: frameSize.width,
               height: frameSize.height,
               transparentBackground: input.transparentBackground,
-              trim: false
+              trim: true,
+              anchor: "bottom-center",
+              padding: 2,
+              removeEdgeArtifacts: true
             });
 
             const frame: GeneratedFrame = {
@@ -380,6 +381,8 @@ export class GenerationService {
       "请生成一张完整的角色动作表，不要生成单张角色插图。",
       `固定网格布局为 ${columns} 列 x ${rows} 行，每个格子是一帧。`,
       rowPlan,
+      "Keep 15-20% transparent safe padding inside every cell; no body part, weapon, cape, projectile, or magic effect may touch or cross a cell edge.",
+      "If the provider canvas is not exactly the grid aspect ratio, keep the whole grid centered with equal transparent outer margins and mathematically even rows and columns.",
       `角色视角：${this.characterViewLabel(input.characterView)}。`,
       "所有格子必须是同一个角色：同一脸型、发型、服装、道具、身高比例、色板和轮廓。",
       "每个格子只允许出现一个角色姿势，角色要居中，脚底基线一致，大小一致。",
@@ -398,6 +401,39 @@ export class GenerationService {
         height: size.height,
         fit: "fill",
         kernel: sharp.kernel.nearest
+      })
+      .png()
+      .toBuffer();
+  }
+
+  private async extractCharacterFrame(
+    sheet: Buffer,
+    args: {
+      columns: number;
+      rows: number;
+      rowIndex: number;
+      frameIndex: number;
+      frameSize: { width: number; height: number };
+    }
+  ): Promise<Buffer> {
+    const metadata = await sharp(sheet).metadata();
+    const width = metadata.width ?? args.frameSize.width * args.columns;
+    const height = metadata.height ?? args.frameSize.height * args.rows;
+    const cellWidth = width / args.columns;
+    const cellHeight = height / args.rows;
+    const bleed = Math.round(Math.min(cellWidth, cellHeight) * 0.04);
+    const left = Math.max(0, Math.floor(args.frameIndex * cellWidth - bleed));
+    const top = Math.max(0, Math.floor(args.rowIndex * cellHeight - bleed));
+    const right = Math.min(width, Math.ceil((args.frameIndex + 1) * cellWidth + bleed));
+    const bottom = Math.min(height, Math.ceil((args.rowIndex + 1) * cellHeight + bleed));
+
+    return sharp(sheet)
+      .ensureAlpha()
+      .extract({
+        left,
+        top,
+        width: Math.max(1, right - left),
+        height: Math.max(1, bottom - top)
       })
       .png()
       .toBuffer();
@@ -442,6 +478,10 @@ export class GenerationService {
 
     const bboxWidth = maxX >= minX ? maxX - minX + 1 : 0;
     const bboxHeight = maxY >= minY ? maxY - minY + 1 : 0;
+    const edgeMargin = Math.max(1, Math.floor(Math.min(expectedSize.width, expectedSize.height) * 0.03));
+    if (alphaPixels > 0 && (minX <= edgeMargin || minY <= edgeMargin || maxX >= info.width - 1 - edgeMargin || maxY >= info.height - 1 - edgeMargin)) {
+      warnings.push("主体贴近帧边缘，可能存在切割残缺");
+    }
     if (bboxWidth > expectedSize.width * 0.94 && bboxHeight > expectedSize.height * 0.94 && alphaRatio > 0.45) {
       warnings.push("主体占满整格，疑似多状态套图或背景占用");
     }

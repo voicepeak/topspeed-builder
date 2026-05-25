@@ -8,6 +8,9 @@ interface ProcessImageOptions {
   height: number;
   transparentBackground: boolean;
   trim: boolean;
+  anchor?: "center" | "bottom-center";
+  padding?: number;
+  removeEdgeArtifacts?: boolean;
 }
 
 export class ImageProcessingService {
@@ -20,11 +23,15 @@ export class ImageProcessingService {
       output = await sharp(output).ensureAlpha().png().toBuffer();
     }
 
+    if (options.removeEdgeArtifacts) {
+      output = await this.removeEdgeArtifacts(output);
+    }
+
     if (options.trim) {
       output = await this.trimTransparent(output);
     }
 
-    output = await this.normalizeCanvas(output, { width: options.width, height: options.height });
+    output = await this.normalizeCanvas(output, { width: options.width, height: options.height }, options.anchor ?? "center", options.padding ?? 0);
     return output;
   }
 
@@ -110,22 +117,108 @@ export class ImageProcessingService {
     }
   }
 
-  private async normalizeCanvas(input: Buffer, size: Size): Promise<Buffer> {
-    return sharp(input)
+  private async removeEdgeArtifacts(input: Buffer): Promise<Buffer> {
+    const { data, info } = await sharp(input).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const channels = info.channels;
+    const total = info.width * info.height;
+    const visited = new Uint8Array(total);
+    const remove = new Uint8Array(total);
+    const minArtifactArea = Math.max(64, Math.floor(total * 0.035));
+
+    for (let start = 0; start < total; start += 1) {
+      if (visited[start] || data[start * channels + 3] <= 12) {
+        continue;
+      }
+
+      const stack = [start];
+      const component: number[] = [];
+      visited[start] = 1;
+      let touchesEdge = false;
+
+      while (stack.length > 0) {
+        const index = stack.pop() as number;
+        component.push(index);
+        const x = index % info.width;
+        const y = Math.floor(index / info.width);
+        if (x <= 1 || y <= 1 || x >= info.width - 2 || y >= info.height - 2) {
+          touchesEdge = true;
+        }
+
+        const neighbors = [index - 1, index + 1, index - info.width, index + info.width];
+        for (const next of neighbors) {
+          if (next < 0 || next >= total || visited[next]) {
+            continue;
+          }
+          const nextX = next % info.width;
+          if ((next === index - 1 && nextX !== x - 1) || (next === index + 1 && nextX !== x + 1)) {
+            continue;
+          }
+          if (data[next * channels + 3] > 12) {
+            visited[next] = 1;
+            stack.push(next);
+          }
+        }
+      }
+
+      if (touchesEdge && component.length < minArtifactArea) {
+        for (const index of component) {
+          remove[index] = 1;
+        }
+      }
+    }
+
+    for (let index = 0; index < total; index += 1) {
+      if (remove[index]) {
+        data[index * channels + 3] = 0;
+      }
+    }
+
+    return sharp(data, {
+      raw: {
+        width: info.width,
+        height: info.height,
+        channels: channels as Raw["channels"]
+      }
+    })
+      .png()
+      .toBuffer();
+  }
+
+  private async normalizeCanvas(input: Buffer, size: Size, anchor: "center" | "bottom-center" = "center", padding = 0): Promise<Buffer> {
+    const safePadding = Math.max(0, Math.min(padding, Math.floor(Math.min(size.width, size.height) / 4)));
+    const targetWidth = Math.max(1, size.width - safePadding * 2);
+    const targetHeight = Math.max(1, size.height - safePadding * 2);
+    const resized = await sharp(input)
       .resize({
+        width: targetWidth,
+        height: targetHeight,
+        fit: "inside",
+        kernel: sharp.kernel.nearest
+      })
+      .png()
+      .toBuffer();
+    const metadata = await sharp(resized).metadata();
+    const resizedWidth = metadata.width ?? targetWidth;
+    const resizedHeight = metadata.height ?? targetHeight;
+    const left = Math.floor((size.width - resizedWidth) / 2);
+    const top =
+      anchor === "bottom-center"
+        ? Math.max(0, size.height - safePadding - resizedHeight)
+        : Math.floor((size.height - resizedHeight) / 2);
+
+    return sharp({
+      create: {
         width: size.width,
         height: size.height,
-        fit: "contain",
-        kernel: sharp.kernel.nearest,
+        channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 }
-      })
-      .extend({
-        top: 0,
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: { r: 0, g: 0, b: 0, alpha: 0 }
-      })
+      }
+    })
+      .composite([{
+        input: resized,
+        left,
+        top
+      }])
       .png()
       .toBuffer();
   }
