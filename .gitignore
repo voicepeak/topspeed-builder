@@ -7,5 +7,6 @@ vite-renderer.out.log
 vite-renderer.err.log
 *.zip
 *.asar
+*.mp4
 .DS_Store
 Thumbs.db

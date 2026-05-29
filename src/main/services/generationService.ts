@@ -9,7 +9,8 @@ import type {
   GenerationHistoryRecord,
   Project,
   ReferenceImageInput,
-  ReferenceImageRole
+  ReferenceImageRole,
+  Size
 } from "@shared/types";
 import { AIGenerationService } from "./aiService";
 import { AtlasPackingService } from "./atlasService";
@@ -209,6 +210,14 @@ export class GenerationService {
     const maskImagePath = this.resolveMaskImagePath(project, input);
     const referenceGuidance = this.buildReferenceGuidance(input);
 
+    const isCharacterI2I = input.generationMode === "image-to-image" && input.referenceImages.some((ref) => ref.sourceAssetId);
+    const sourceAsset = isCharacterI2I ? this.findAssetById(project, input.referenceImages.find((ref) => ref.sourceAssetId)!.sourceAssetId!) : undefined;
+    const originalPrompt = sourceAsset?.prompt ?? "";
+    const originalSourceSheets = this.findSourceSheetPaths(sourceAsset, project);
+    const resolvedReferences = isCharacterI2I && originalSourceSheets.length > 0
+      ? originalSourceSheets.map((sheetPath) => ({ filePath: sheetPath, role: "subject" as ReferenceImageRole, path: sheetPath }))
+      : referenceImages;
+
     for (let versionIndex = 0; versionIndex < versionCount; versionIndex += 1) {
       const versionLabel = `v${String(versionIndex + 1).padStart(2, "0")}`;
       const versionOutputName = versionCount > 1 ? `${assetName}_${versionLabel}` : assetName;
@@ -216,23 +225,26 @@ export class GenerationService {
       const sourceSheetName = `character_${assetName}_${versionLabel}_source_sheet.png`;
       const rawPath = path.join(project.path, "generated", "raw", runId, sourceSheetName);
       const sourceSheetPath = path.join(versionDirectory, sourceSheetName);
-      const prompt = this.aiService.buildPrompt({
-        assetType: "完整角色动作表",
-        name: versionCount > 1 ? `${input.name} ${versionLabel}` : input.name,
-        description: input.description,
-        style: this.buildStylePrompt(project, input),
-        size: `${columns}x${rows} action sheet; each exported frame ${input.size}`,
-        transparentBackground: input.transparentBackground,
-        extra: [
-          this.buildCharacterSheetGuidance(input, animations, columns, rows),
-          versionCount > 1 ? `这是第 ${versionIndex + 1} 套候选角色版本，必须保持本套内部所有动作帧一致。` : "",
-          referenceGuidance
-        ].join(" ")
-      });
+
+      const prompt = isCharacterI2I && originalPrompt
+        ? this.buildCharacterI2IPrompt(originalPrompt, input, project, animations, columns, rows, versionIndex, versionCount)
+        : this.aiService.buildPrompt({
+            assetType: "完整角色动作表",
+            name: versionCount > 1 ? `${input.name} ${versionLabel}` : input.name,
+            description: input.description,
+            style: this.buildStylePrompt(project, input),
+            size: `${columns}x${rows} action sheet; each exported frame ${input.size}`,
+            transparentBackground: input.transparentBackground,
+            extra: [
+              this.buildCharacterSheetGuidance(input, animations, columns, rows),
+              versionCount > 1 ? `这是第 ${versionIndex + 1} 套候选角色版本，必须保持本套内部所有动作帧一致。` : "",
+              referenceGuidance
+            ].join(" ")
+          });
       prompts.push(prompt);
 
       try {
-        const image = await this.generateWithRetry(prompt, sheetSizeText, input.transparentBackground, input, referenceImages, maskImagePath);
+        const image = await this.generateWithRetry(prompt, sheetSizeText, input.transparentBackground, input, resolvedReferences, maskImagePath);
         const normalizedSheet = await this.normalizeCharacterSheet(image, sheetSize);
         await fs.ensureDir(path.dirname(rawPath));
         await fs.writeFile(rawPath, image);
@@ -895,6 +907,45 @@ export class GenerationService {
 
     await this.historyService.append(project.path, historyRecord);
     logs.push(`保存历史记录: ${path.join(project.path, "history", `${asset.id}.json`)}`);
+  }
+
+  private findAssetById(project: Project, assetId: string): Asset | undefined {
+    return project.assets.find((asset) => asset.id === assetId);
+  }
+
+  private findSourceSheetPaths(asset: Asset | undefined, project: Project): string[] {
+    if (!asset) return [];
+    const sheets = asset.files.filter((file) => file.includes("source_sheet"));
+    if (sheets.length > 0) return sheets.map((f) => resolveProjectPath(project.path, f));
+    if (asset.sheetPath) return [resolveProjectPath(project.path, asset.sheetPath)];
+    if (asset.files.length > 0) return [resolveProjectPath(project.path, asset.files[0])];
+    return [];
+  }
+
+  private buildCharacterI2IPrompt(
+    originalPrompt: string,
+    input: GenerateAssetInput,
+    project: Project,
+    animations: GenerateAssetInput["animations"],
+    columns: number,
+    rows: number,
+    versionIndex: number,
+    versionCount: number
+  ): string {
+    const versionLabel = `v${String(versionIndex + 1).padStart(2, "0")}`;
+    const mergedDescription = input.description
+      ? `修改要求：${input.description}。来自用户的新描述，必须覆盖原描述中可能冲突的部分。`
+      : "";
+
+    return [
+      originalPrompt,
+      "======== 以上是原始生成提示词 ========",
+      mergedDescription,
+      `版本：${versionCount > 1 ? `${input.name} ${versionLabel}` : input.name}`,
+      `角色视角：${this.characterViewLabel(input.characterView)}。`,
+      this.buildCharacterSheetGuidance(input, animations, columns, rows),
+      "请基于原始角色设计进行修改调整，保持角色身份、服装、色板一致，只改变指定的部分。"
+    ].filter(Boolean).join("\n");
   }
 
   private validateInput(input: GenerateAssetInput): void {
