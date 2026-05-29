@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/topspeed--builder-v1.0.0-00d4ff?style=flat-square&labelColor=0b0e11">
-    <img src="https://img.shields.io/badge/topspeed--builder-v1.0.0-00d4ff?style=flat-square&labelColor=0b0e11" alt="版本">
+    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/topspeed--builder-v1.0.1-00d4ff?style=flat-square&labelColor=0b0e11">
+    <img src="https://img.shields.io/badge/topspeed--builder-v1.0.1-00d4ff?style=flat-square&labelColor=0b0e11" alt="版本">
   </picture>
 </p>
 
@@ -63,7 +63,7 @@ npm run build     # 构建到 out/
 npm run dist:win  # 打包 Windows 安装包（输出到 release/）
 ```
 
-一键安装包位于 `release/Topspeed Builder Setup 1.0.0.exe`。
+一键安装包位于 `release/Topspeed Builder Setup 1.0.1.exe`。
 
 ## 智能生成接口配置
 
@@ -183,7 +183,7 @@ npm run build     # compile to out/
 npm run dist:win  # package Windows installer (output in release/)
 ```
 
-One-click installer at `release/Topspeed Builder Setup 1.0.0.exe`.
+One-click installer at `release/Topspeed Builder Setup 1.0.1.exe`.
 
 ## AI API Configuration
 
