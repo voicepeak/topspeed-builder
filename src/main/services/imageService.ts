@@ -52,55 +52,145 @@ export class ImageProcessingService {
     const image = sharp(input).ensureAlpha();
     const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
     const channels = info.channels;
-    const background = this.estimateBackground(data, info);
-    const tolerance = 42;
 
-    for (let offset = 0; offset < data.length; offset += channels) {
+    const alreadyTransparent = this.hasRealAlphaChannel(data, channels, info.width * info.height);
+    if (alreadyTransparent) {
+      return sharp(data, {
+        raw: { width: info.width, height: info.height, channels: channels as Raw["channels"] }
+      }).png().toBuffer();
+    }
+
+    const background = this.estimateBackgroundFromEdges(data, info);
+    const tolerance = this.computeAdaptiveTolerance(data, info, background, channels);
+    const toRemove = new Uint8Array(data.length / channels);
+
+    for (let i = 0; i < data.length; i += channels) {
+      const index = i / channels;
       const distance = Math.sqrt(
-        (data[offset] - background.r) ** 2 +
-          (data[offset + 1] - background.g) ** 2 +
-          (data[offset + 2] - background.b) ** 2
+        (data[i] - background.r) ** 2 +
+        (data[i + 1] - background.g) ** 2 +
+        (data[i + 2] - background.b) ** 2
       );
 
-      if (distance <= tolerance || data[offset + 3] < 8) {
-        data[offset + 3] = 0;
+      if (distance <= tolerance || data[i + 3] < 8) {
+        toRemove[index] = 1;
+      }
+    }
+
+    this.cleanupStrayPixels(toRemove, info.width, info.height);
+
+    for (let i = 0; i < data.length; i += channels) {
+      if (toRemove[i / channels]) {
+        data[i + 3] = 0;
       }
     }
 
     return sharp(data, {
-      raw: {
-        width: info.width,
-        height: info.height,
-        channels: channels as Raw["channels"]
-      }
-    })
-      .png()
-      .toBuffer();
+      raw: { width: info.width, height: info.height, channels: channels as Raw["channels"] }
+    }).png().toBuffer();
   }
 
-  private estimateBackground(data: Buffer, info: sharp.OutputInfo): { r: number; g: number; b: number } {
-    const samples: Array<{ r: number; g: number; b: number }> = [];
-    const channels = info.channels;
-    const points = [
-      [0, 0],
-      [info.width - 1, 0],
-      [0, info.height - 1],
-      [info.width - 1, info.height - 1]
-    ];
+  private hasRealAlphaChannel(data: Buffer, channels: number, totalPixels: number): boolean {
+    let fullyOpaque = 0;
+    let fullyTransparent = 0;
+    for (let i = 0; i < totalPixels; i++) {
+      const alpha = data[i * channels + 3];
+      if (alpha >= 254) fullyOpaque++;
+      else if (alpha <= 1) fullyTransparent++;
+    }
+    const transparentRatio = fullyTransparent / totalPixels;
+    const opaqueRatio = fullyOpaque / totalPixels;
+    return transparentRatio > 0.02 && opaqueRatio < 0.98;
+  }
 
-    for (const [x, y] of points) {
-      const offset = (y * info.width + x) * channels;
-      samples.push({ r: data[offset], g: data[offset + 1], b: data[offset + 2] });
+  private estimateBackgroundFromEdges(data: Buffer, info: sharp.OutputInfo): { r: number; g: number; b: number } {
+    const channels = info.channels;
+    const samples: Array<{ r: number; g: number; b: number }> = [];
+
+    const stride = Math.max(1, Math.floor(Math.min(info.width, info.height) / 40));
+    for (let x = 0; x < info.width; x += stride) {
+      const top = x * channels;
+      samples.push({ r: data[top], g: data[top + 1], b: data[top + 2] });
+      const bottom = ((info.height - 1) * info.width + x) * channels;
+      samples.push({ r: data[bottom], g: data[bottom + 1], b: data[bottom + 2] });
+    }
+    for (let y = stride; y < info.height - 1; y += stride) {
+      const left = y * info.width * channels;
+      samples.push({ r: data[left], g: data[left + 1], b: data[left + 2] });
+      const right = (y * info.width + info.width - 1) * channels;
+      samples.push({ r: data[right], g: data[right + 1], b: data[right + 2] });
     }
 
-    return samples.reduce(
-      (sum, color) => ({
-        r: sum.r + color.r / samples.length,
-        g: sum.g + color.g / samples.length,
-        b: sum.b + color.b / samples.length
-      }),
-      { r: 0, g: 0, b: 0 }
-    );
+    const rValues = samples.map(s => s.r).sort((a, b) => a - b);
+    const gValues = samples.map(s => s.g).sort((a, b) => a - b);
+    const bValues = samples.map(s => s.b).sort((a, b) => a - b);
+    const mid = Math.floor(samples.length / 2);
+
+    return {
+      r: rValues[mid],
+      g: gValues[mid],
+      b: bValues[mid]
+    };
+  }
+
+  private computeAdaptiveTolerance(
+    data: Buffer, info: sharp.OutputInfo,
+    background: { r: number; g: number; b: number }, channels: number
+  ): number {
+    const edgeDists: number[] = [];
+    for (let x = 0; x < info.width; x++) {
+      [0, info.height - 1].forEach(y => {
+        const i = (y * info.width + x) * channels;
+        edgeDists.push(Math.sqrt(
+          (data[i] - background.r) ** 2 +
+          (data[i + 1] - background.g) ** 2 +
+          (data[i + 2] - background.b) ** 2
+        ));
+      });
+    }
+    if (edgeDists.length === 0) return 42;
+    edgeDists.sort((a, b) => a - b);
+
+    const q3 = edgeDists[Math.floor(edgeDists.length * 0.75)];
+    const iqr = edgeDists[Math.floor(edgeDists.length * 0.75)] - edgeDists[Math.floor(edgeDists.length * 0.25)];
+    return Math.min(64, Math.max(24, Math.round(q3 + iqr * 1.5)));
+  }
+
+  private cleanupStrayPixels(mask: Uint8Array, width: number, height: number): void {
+    const total = width * height;
+    const visited = new Uint8Array(total);
+    const minRegion = Math.max(12, Math.floor(total * 0.008));
+
+    for (let start = 0; start < total; start++) {
+      if (!mask[start] || visited[start]) continue;
+
+      const stack = [start];
+      visited[start] = 1;
+      const component: number[] = [];
+
+      while (stack.length > 0) {
+        const index = stack.pop()!;
+        component.push(index);
+        const x = index % width;
+        const y = Math.floor(index / width);
+        const neighbors = [
+          x > 0 ? index - 1 : -1,
+          x < width - 1 ? index + 1 : -1,
+          y > 0 ? index - width : -1,
+          y < height - 1 ? index + width : -1
+        ];
+        for (const next of neighbors) {
+          if (next >= 0 && mask[next] && !visited[next]) {
+            visited[next] = 1;
+            stack.push(next);
+          }
+        }
+      }
+
+      if (component.length < minRegion) {
+        for (const index of component) mask[index] = 0;
+      }
+    }
   }
 
   private async trimTransparent(input: Buffer): Promise<Buffer> {
